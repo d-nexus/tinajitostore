@@ -4,13 +4,16 @@
    ========================================== */
 
 // --- CLIENTE SUPABASE ---
-// SUPABASE_URL / SUPABASE_ANON_KEY vienen de config.js (se carga antes que
-// este archivo). La anon key NO es secreta: está pensada para vivir en el
-// navegador de cualquier visitante. La seguridad real la dan las políticas
-// RLS definidas en supabase/schema.sql, no el ocultar esta llave.
-const supabase = (window.SUPABASE_URL && window.SUPABASE_ANON_KEY && window.supabase)
-    ? window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY)
-    : null;
+// SUPABASE_URL / SUPABASE_ANON_KEY vienen de config.js.
+// Reutilizamos la instancia existente o la creamos de forma segura sin colisiones ni redeclaraciones.
+if (typeof window.supabaseClient === 'undefined') {
+    window.supabaseClient = (window.SUPABASE_URL && window.SUPABASE_ANON_KEY && window.supabase)
+        ? (typeof window.supabase.createClient === 'function'
+            ? window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY)
+            : window.supabase)
+        : null;
+}
+var supabase = window.supabaseClient;
 
 // --- SEGURIDAD: ESCAPE DE HTML (anti-XSS) ---
 // Cualquier dato que venga de un formulario (nombre de producto, categoría,
