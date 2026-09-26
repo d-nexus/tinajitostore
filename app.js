@@ -48,75 +48,114 @@ let currentAmbassador = null; // nunca se persiste (ni él ni su PIN) en el nave
 const STORE_WHATSAPP_NUMBER = "5353554857";
 
 // --- INICIALIZACIÓN ---
-document.addEventListener('DOMContentLoaded', async () => {
+document.addEventListener('DOMContentLoaded', () => {
+    // 1. Inicializar la interfaz y los escuchadores de eventos ('click') de inmediato,
+    // de forma independiente al estado de la red o Supabase.
     setupGlobalEvents();
+    initStoreView();
 
     if (!supabase) {
-        showConfigError();
+        showConnectionError('Falta configurar la conexión a la base de datos en config.js');
         return;
     }
 
+    // 2. Manejar las peticiones a Supabase de manera asíncrona sin bloquear la UI ni los eventos.
+    initializeAppAsync();
+});
+
+function showConnectionError(message) {
+    const grid = document.getElementById('products-grid');
+    if (grid && products.length === 0) {
+        grid.innerHTML = `
+            <div class="col-span-full text-center py-16 bg-slate-900 rounded-3xl border border-slate-800 px-6">
+                <svg class="w-12 h-12 mx-auto text-amber-500 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                </svg>
+                <h3 class="text-base font-semibold text-amber-400">Aviso de Conexión</h3>
+                <p class="text-slate-400 text-sm mt-1">${escapeHtml(message)}</p>
+            </div>`;
+    }
+}
+
+async function initializeAppAsync() {
     try {
         await loadCatalog();
     } catch (err) {
-        console.error('Error al cargar catálogo:', err);
+        console.error('Error al cargar catálogo en segundo plano:', err);
     }
 
-    const urlParams = new URLSearchParams(window.location.search);
-    const refCode = urlParams.get('ref');
-    if (refCode) {
-        const found = await fetchPublicAffiliate(refCode);
-        if (found) {
-            activeAffiliate = found;
-            setStorage('active_affiliate', activeAffiliate);
+    try {
+        const urlParams = new URLSearchParams(window.location.search);
+        const refCode = urlParams.get('ref');
+        if (refCode) {
+            const found = await fetchPublicAffiliate(refCode);
+            if (found) {
+                activeAffiliate = found;
+                setStorage('active_affiliate', activeAffiliate);
+                updateCartUI();
+            }
         }
-    }
-
-    initStoreView();
-});
-
-function showConfigError() {
-    const grid = document.getElementById('products-grid');
-    if (grid) {
-        grid.innerHTML = `
-            <div class="col-span-full text-center py-20 bg-slate-900 rounded-3xl border border-slate-800">
-                <h3 class="text-base font-semibold text-rose-400">Falta configurar la conexión a la base de datos</h3>
-                <p class="text-slate-400 text-sm mt-1">Completa SUPABASE_URL y SUPABASE_ANON_KEY en config.js</p>
-            </div>`;
+    } catch (err) {
+        console.error('Error al procesar enlace de referido:', err);
     }
 }
 
 async function loadCatalog() {
     const grid = document.getElementById('products-grid');
-    if (grid) grid.innerHTML = `<div class="col-span-full text-center py-20 text-slate-400">Cargando catálogo...</div>`;
+    if (grid && products.length === 0) {
+        grid.innerHTML = `<div class="col-span-full text-center py-20 text-slate-400">Cargando catálogo...</div>`;
+    }
 
-    const [{ data: cats, error: catErr }, { data: prods, error: prodErr }] = await Promise.all([
-        supabase.from('categories').select('name').order('name'),
-        supabase.from('products').select('*').order('id')
-    ]);
+    try {
+        const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Timeout al conectar con Supabase')), 8000)
+        );
 
-    if (catErr) console.error('Error cargando categorías:', catErr.message);
-    if (prodErr) console.error('Error cargando productos:', prodErr.message);
+        const fetchPromise = Promise.all([
+            supabase.from('categories').select('name').order('name'),
+            supabase.from('products').select('*').order('id')
+        ]);
 
-    categories = (cats || []).map(c => c.name);
-    products = (prods || []).map(p => ({
-        id: p.id,
-        name: p.name,
-        category: p.category,
-        price: Number(p.price),
-        originalPrice: p.original_price !== null ? Number(p.original_price) : null,
-        image: p.image,
-        description: p.description,
-        badge: p.badge
-    }));
+        const [{ data: cats, error: catErr }, { data: prods, error: prodErr }] = await Promise.race([
+            fetchPromise,
+            timeoutPromise
+        ]);
+
+        if (catErr) console.error('Error cargando categorías:', catErr.message);
+        if (prodErr) console.error('Error cargando productos:', prodErr.message);
+
+        categories = (cats || []).map(c => c.name);
+        products = (prods || []).map(p => ({
+            id: p.id,
+            name: p.name,
+            category: p.category,
+            price: Number(p.price),
+            originalPrice: p.original_price !== null ? Number(p.original_price) : null,
+            image: p.image,
+            description: p.description,
+            badge: p.badge
+        }));
+
+        initStoreView();
+    } catch (err) {
+        console.error('Error al cargar catálogo:', err);
+        showConnectionError('No se pudo establecer conexión con Supabase. Puedes interactuar con la interfaz visual y el carrito localmente.');
+        initStoreView();
+    }
 }
 
 // Datos públicos de un afiliado (para mostrar el % de descuento en el
 // carrito). Nunca expone el PIN ni la comisión.
 async function fetchPublicAffiliate(codigo) {
-    const { data, error } = await supabase.rpc('get_public_affiliate', { p_codigo: codigo });
-    if (error || !data || data.length === 0) return null;
-    return data[0];
+    if (!supabase) return null;
+    try {
+        const { data, error } = await supabase.rpc('get_public_affiliate', { p_codigo: codigo });
+        if (error || !data || data.length === 0) return null;
+        return data[0];
+    } catch (err) {
+        console.error('Error al obtener afiliado público:', err);
+        return null;
+    }
 }
 
 // --- CONFIGURACIÓN DE EVENTOS GLOBALES ---
