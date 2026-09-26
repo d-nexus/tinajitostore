@@ -4,16 +4,14 @@
    ========================================== */
 
 // --- CLIENTE SUPABASE ---
-// Inicialización segura comprobando variables de configuración y CDN, evitando redeclaraciones.
-let supabaseClientInstance = null;
+// Reutilizamos la variable global 'supabase' provista por el CDN sin declarar const ni let.
 try {
-    if (typeof window !== 'undefined' && window.supabase && typeof SUPABASE_URL !== 'undefined' && typeof SUPABASE_ANON_KEY !== 'undefined') {
-        supabaseClientInstance = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    if (typeof supabase !== 'undefined' && typeof supabase.createClient === 'function' && typeof SUPABASE_URL !== 'undefined' && typeof SUPABASE_ANON_KEY !== 'undefined') {
+        supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     }
 } catch (err) {
     console.error('Error al inicializar Supabase:', err);
 }
-const supabase = supabaseClientInstance;
 
 // --- SEGURIDAD: ESCAPE DE HTML (anti-XSS) ---
 // Cualquier dato que venga de un formulario (nombre de producto, categoría,
