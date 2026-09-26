@@ -49,12 +49,18 @@ const STORE_WHATSAPP_NUMBER = "5353554857";
 
 // --- INICIALIZACIÓN ---
 document.addEventListener('DOMContentLoaded', async () => {
+    setupGlobalEvents();
+
     if (!supabase) {
         showConfigError();
         return;
     }
 
-    await loadCatalog();
+    try {
+        await loadCatalog();
+    } catch (err) {
+        console.error('Error al cargar catálogo:', err);
+    }
 
     const urlParams = new URLSearchParams(window.location.search);
     const refCode = urlParams.get('ref');
@@ -67,7 +73,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     initStoreView();
-    setupGlobalEvents();
 });
 
 function showConfigError() {
