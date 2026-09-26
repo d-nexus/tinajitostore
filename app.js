@@ -4,16 +4,9 @@
    ========================================== */
 
 // --- CLIENTE SUPABASE ---
-// SUPABASE_URL / SUPABASE_ANON_KEY vienen de config.js.
-// Reutilizamos la instancia existente o la creamos de forma segura sin colisiones ni redeclaraciones.
-if (typeof window.supabaseClient === 'undefined') {
-    window.supabaseClient = (window.SUPABASE_URL && window.SUPABASE_ANON_KEY && window.supabase)
-        ? (typeof window.supabase.createClient === 'function'
-            ? window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY)
-            : window.supabase)
-        : null;
-}
-var supabase = window.supabaseClient;
+const supabase = (typeof SUPABASE_URL !== 'undefined' && typeof SUPABASE_ANON_KEY !== 'undefined' && window.supabase)
+    ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+    : null;
 
 // --- SEGURIDAD: ESCAPE DE HTML (anti-XSS) ---
 // Cualquier dato que venga de un formulario (nombre de producto, categoría,
@@ -104,9 +97,10 @@ async function initializeAppAsync() {
 }
 
 async function loadCatalog() {
-    const grid = document.getElementById('products-grid');
-    if (grid && products.length === 0) {
-        grid.innerHTML = `<div class="col-span-full text-center py-20 text-slate-400">Cargando catálogo...</div>`;
+    if (!supabase) {
+        showConnectionError('Falta configurar la conexión a la base de datos en config.js');
+        initStoreView();
+        return;
     }
 
     try {
@@ -302,6 +296,12 @@ async function handleAdminLogin(e) {
     const errorDiv = document.getElementById('admin-login-error');
     errorDiv.classList.add('hidden');
 
+    if (!supabase) {
+        errorDiv.textContent = 'Cliente de Supabase no inicializado.';
+        errorDiv.classList.remove('hidden');
+        return;
+    }
+
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error || !data.session) {
         errorDiv.textContent = 'Correo o contraseña incorrectos.';
@@ -324,6 +324,7 @@ async function handleAdminLogin(e) {
 // Comprueba, contra la base de datos (no contra nada guardado en el
 // navegador), si el usuario con sesión iniciada está en la tabla admins.
 async function checkIsAdmin() {
+    if (!supabase) return false;
     const { data: sessionData } = await supabase.auth.getSession();
     if (!sessionData.session) return false;
     const { data, error } = await supabase
