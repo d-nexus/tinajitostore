@@ -4,9 +4,16 @@
    ========================================== */
 
 // --- CLIENTE SUPABASE ---
-const supabase = (typeof SUPABASE_URL !== 'undefined' && typeof SUPABASE_ANON_KEY !== 'undefined' && window.supabase)
-    ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
-    : null;
+// Inicialización segura comprobando variables de configuración y CDN, evitando redeclaraciones.
+let supabaseClientInstance = null;
+try {
+    if (typeof window !== 'undefined' && window.supabase && typeof SUPABASE_URL !== 'undefined' && typeof SUPABASE_ANON_KEY !== 'undefined') {
+        supabaseClientInstance = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    }
+} catch (err) {
+    console.error('Error al inicializar Supabase:', err);
+}
+const supabase = supabaseClientInstance;
 
 // --- SEGURIDAD: ESCAPE DE HTML (anti-XSS) ---
 // Cualquier dato que venga de un formulario (nombre de producto, categoría,
@@ -294,31 +301,45 @@ async function handleAdminLogin(e) {
     const email = document.getElementById('admin-email').value.trim();
     const password = document.getElementById('admin-password').value;
     const errorDiv = document.getElementById('admin-login-error');
-    errorDiv.classList.add('hidden');
+    if (errorDiv) errorDiv.classList.add('hidden');
 
     if (!supabase) {
-        errorDiv.textContent = 'Cliente de Supabase no inicializado.';
-        errorDiv.classList.remove('hidden');
+        if (errorDiv) {
+            errorDiv.textContent = 'Cliente de Supabase no inicializado.';
+            errorDiv.classList.remove('hidden');
+        }
         return;
     }
 
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error || !data.session) {
-        errorDiv.textContent = 'Correo o contraseña incorrectos.';
-        errorDiv.classList.remove('hidden');
-        return;
-    }
+    try {
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error || !data.session) {
+            if (errorDiv) {
+                errorDiv.textContent = 'Correo o contraseña incorrectos.';
+                errorDiv.classList.remove('hidden');
+            }
+            return;
+        }
 
-    const allowed = await checkIsAdmin();
-    if (!allowed) {
-        await supabase.auth.signOut();
-        errorDiv.textContent = 'Esta cuenta no tiene permisos de administrador.';
-        errorDiv.classList.remove('hidden');
-        return;
-    }
+        const allowed = await checkIsAdmin();
+        if (!allowed) {
+            await supabase.auth.signOut();
+            if (errorDiv) {
+                errorDiv.textContent = 'Esta cuenta no tiene permisos de administrador.';
+                errorDiv.classList.remove('hidden');
+            }
+            return;
+        }
 
-    closeAdminLoginModal();
-    switchView('admin');
+        closeAdminLoginModal();
+        switchView('admin');
+    } catch (err) {
+        console.error('Error en autenticación de admin:', err);
+        if (errorDiv) {
+            errorDiv.textContent = 'Error de conexión al iniciar sesión.';
+            errorDiv.classList.remove('hidden');
+        }
+    }
 }
 
 // Comprueba, contra la base de datos (no contra nada guardado en el
