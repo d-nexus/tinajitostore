@@ -1,0 +1,726 @@
+<!DOCTYPE html>
+<html lang="es" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TinajitoStore | Tienda Online con Afiliados y WhatsApp</title>
+    <meta name="description" content="TinajitoStore: bazar online de tecnología, audio, moda y accesorios. Pide por WhatsApp y usa códigos de descuento de nuestros embajadores.">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="TinajitoStore | Tienda Online con Afiliados y WhatsApp">
+    <meta property="og:description" content="Explora nuestro catálogo, aplica un código de afiliado y pide al instante por WhatsApp.">
+    <meta property="og:image" content="image/Tinajito.png">
+    <link rel="icon" type="image/png" href="image/favicon.png">
+    <link rel="apple-touch-icon" href="image/favicon.png">
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body class="bg-slate-950 text-slate-100 antialiased min-h-screen flex flex-col">
+
+    <!-- HEADER / NAVBAR -->
+    <header class="sticky top-0 z-40 bg-slate-950/90 backdrop-blur-md border-b border-slate-800 shadow-2xl transition-all">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-24 sm:h-28 flex items-center justify-between">
+            <!-- Logo -->
+            <a href="#" id="nav-store-btn" class="flex items-center space-x-3.5 cursor-pointer group">
+                <img src="image/Tinajito.png" alt="TinajitoStore Logo" class="w-14 h-14 sm:w-16 sm:h-16 rounded-full object-cover shadow-md group-hover:scale-105 transition-transform duration-300 border border-slate-700">
+                <div>
+                    <span class="text-xl sm:text-2xl font-black tracking-tight text-white">Tinajito<span class="text-emerald-400">Store</span></span>
+                    <span class="block text-[10px] sm:text-xs text-slate-400 uppercase tracking-widest font-semibold">E-Commerce & Referidos</span>
+                </div>
+            </a>
+
+            <!-- Search Bar (Desktop) -->
+            <div class="hidden md:flex items-center flex-1 max-w-md mx-8">
+                <div class="relative w-full">
+                    <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                        </svg>
+                    </span>
+                    <input type="text" id="search-input" placeholder="Buscar productos, marcas y más..." class="w-full pl-10 pr-4 py-2.5 bg-slate-900 border border-slate-800 rounded-xl text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:bg-slate-900 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all">
+                </div>
+            </div>
+
+            <!-- Actions / Cart Button -->
+            <div class="flex items-center space-x-3">
+                <button id="btnEmbajadores" class="inline-flex items-center gap-1.5 px-3 py-2 sm:px-4 sm:py-2 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 rounded-full font-medium transition-all duration-200 text-xs sm:text-sm border border-emerald-500/20">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+                    <span>Afiliados</span>
+                </button>
+                <button id="cart-btn" class="relative inline-flex items-center gap-1.5 px-3 py-2 sm:px-4 sm:py-2 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 rounded-full font-medium transition-all duration-200 text-xs sm:text-sm border border-emerald-500/20 group">
+                    <svg class="w-4 h-4 text-emerald-400 group-hover:text-emerald-300 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"></path>
+                    </svg>
+                    <span>Carrito</span>
+                    <span id="cart-count" class="absolute -top-1 -right-1 bg-rose-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold shadow-sm hidden">0</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Search Bar (Mobile) -->
+        <div class="md:hidden px-4 pb-3">
+            <div class="relative w-full">
+                <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                    </svg>
+                </span>
+                <input type="text" id="search-input-mobile" placeholder="Buscar productos..." class="w-full pl-10 pr-4 py-2.5 bg-slate-900 border border-slate-800 rounded-xl text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:bg-slate-900 focus:border-emerald-500">
+            </div>
+        </div>
+    </header>
+
+    <!-- ========================================== -->
+    <!-- VISTA 1: TIENDA PÚBLICA                         -->
+    <!-- ========================================== -->
+    <div id="store-view" class="flex flex-col flex-1">
+        <!-- HERO SECTION -->
+        <section class="text-white py-20 lg:py-28 relative overflow-hidden border-b border-slate-800 bg-slate-950">
+            <!-- Video Background -->
+            <video id="hero-video" autoplay muted loop playsinline preload="metadata" class="absolute inset-0 w-full h-full object-cover object-center z-0">
+                <source src="image/grok-video-a9c4af40-690a-4fc1-b977-fe3b18ffb15e.mp4" type="video/mp4">
+            </video>
+            <!-- Dark Overlay -->
+            <div class="absolute inset-0 bg-slate-950/70 z-10"></div>
+            <!-- Loop Fade Mask -->
+            <div id="hero-video-loop-fade" class="absolute inset-0 bg-slate-950 z-10 opacity-0 pointer-events-none"></div>
+            
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-20">
+                <div class="max-w-3xl mx-auto text-center">
+                    <span class="bg-slate-900/60 text-slate-200 border border-slate-600 text-xs font-semibold px-4 py-2 rounded-full uppercase tracking-wider inline-flex items-center space-x-2 shadow-sm">
+                        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                        <span>Bazar General &middot; Sistema de Afiliados Activo</span>
+                    </span>
+                    <h1 class="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight mt-6 leading-[1.1] text-white">
+                        Todo lo que necesitas, <span class="text-emerald-400">al alcance de un WhatsApp</span>
+                    </h1>
+                    <p class="mt-4 text-lg text-slate-200 font-normal leading-relaxed">
+                        Explora nuestra gran variedad de productos: comida, electrodomésticos, tecnología y más. Usa códigos de descuento de nuestros embajadores y pide al instante.
+                    </p>
+                    <div class="mt-8 flex justify-center gap-4">
+                        <a href="#catalogo" class="bg-emerald-600 hover:bg-emerald-500 text-white font-medium px-8 py-3.5 rounded-xl shadow-lg shadow-emerald-600/20 transition-all duration-300 flex items-center space-x-2 text-base">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"></path></svg>
+                            <span>Explorar Catálogo</span>
+                        </a>
+                    </div>
+                    
+                    <!-- Trust Badges -->
+                    <div class="mt-10 pt-8 border-t border-slate-700/80 grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs font-medium text-slate-200">
+                        <div class="flex items-center justify-center space-x-2 bg-slate-900/60 py-3 px-4 rounded-xl border border-slate-700 shadow-sm">
+                            <span class="text-emerald-400 text-base">⚡</span>
+                            <span>Pedidos directos por WhatsApp</span>
+                        </div>
+                        <div class="flex items-center justify-center space-x-2 bg-slate-900/60 py-3 px-4 rounded-xl border border-slate-700 shadow-sm">
+                            <span class="text-emerald-400 text-base">🏷️</span>
+                            <span>Descuentos con Afiliados</span>
+                        </div>
+                        <div class="flex items-center justify-center space-x-2 bg-slate-900/60 py-3 px-4 rounded-xl border border-slate-700 shadow-sm">
+                            <span class="text-emerald-400 text-base">🛡️</span>
+                            <span>Compra segura y confiable</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- CATALOGO DE PRODUCTOS -->
+        <main id="catalogo" class="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 w-full">
+            <div class="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
+                <div>
+                    <h2 class="text-2xl font-bold text-white tracking-tight">Catálogo Destacado</h2>
+                    <p class="text-sm text-slate-400 mt-0.5">Elige tus productos y aplica tu código en el carrito</p>
+                </div>
+
+                <!-- Filtros por Categoría Dinámicos -->
+                <div id="category-filters-container" class="flex items-center space-x-2 overflow-x-auto pb-2 md:pb-0">
+                    <!-- Inyectado por JS -->
+                </div>
+            </div>
+
+            <!-- Grid de Productos -->
+            <div id="products-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                <!-- Inyectado por JS -->
+            </div>
+        </main>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- VISTA 2: PANEL ADMINISTRATIVO (PRIVADO)    -->
+    <!-- ========================================== -->
+    <div id="admin-view" class="flex flex-col flex-1 hidden bg-slate-950 text-slate-100">
+        <div class="bg-slate-900 text-white border-b border-slate-800">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center font-bold text-xl text-white">
+                        ⚙️
+                    </div>
+                    <div>
+                        <h2 class="text-xl font-bold tracking-tight">Panel Administrativo</h2>
+                        <span class="text-xs text-indigo-400 font-semibold">Gestión TinajitoStore</span>
+                    </div>
+                </div>
+                <button id="back-to-store-btn" class="bg-slate-800 hover:bg-slate-700 text-white px-5 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider transition-colors border border-slate-700">
+                    ← Volver a la Tienda
+                </button>
+                <button id="admin-logout-btn" class="ml-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 px-5 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider transition-colors border border-rose-500/20">
+                    Cerrar Sesión
+                </button>
+            </div>
+        </div>
+
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 w-full flex-1">
+            <!-- PESTAÑAS DEL ADMIN -->
+            <div class="flex flex-wrap gap-3 mb-8 border-b border-slate-800 pb-6">
+                <button data-tab="dashboard" class="admin-tab-btn px-6 py-3 rounded-xl font-bold text-sm transition-all shadow-md bg-indigo-600 text-white">
+                    📊 Reportes y Comisiones
+                </button>
+                <button data-tab="products" class="admin-tab-btn px-6 py-3 rounded-xl font-bold text-sm transition-all bg-slate-900 text-slate-300 border border-slate-800 hover:bg-slate-800">
+                    📦 Gestión de Productos
+                </button>
+                <button data-tab="categories" class="admin-tab-btn px-6 py-3 rounded-xl font-bold text-sm transition-all bg-slate-900 text-slate-300 border border-slate-800 hover:bg-slate-800">
+                    📂 Gestión de Categorías
+                </button>
+                <button data-tab="affiliates" class="admin-tab-btn px-6 py-3 rounded-xl font-bold text-sm transition-all bg-slate-900 text-slate-300 border border-slate-800 hover:bg-slate-800">
+                    🤝 Gestión de Afiliados
+                </button>
+            </div>
+
+            <!-- TAB 1: REPORTES DE VENTAS Y COMISIONES -->
+            <div id="admin-tab-dashboard" class="admin-tab-content space-y-8 animate-fade-in">
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                    <div class="bg-slate-900 p-6 rounded-3xl border border-slate-800 shadow-sm flex items-center space-x-4">
+                        <div class="w-14 h-14 rounded-2xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center font-bold text-2xl">🛍️</div>
+                        <div>
+                            <p class="text-xs font-bold text-slate-400 uppercase tracking-wider">Ventas con Referido</p>
+                            <h3 id="stat-total-sales" class="text-3xl font-black text-white mt-1">0</h3>
+                        </div>
+                    </div>
+                    <div class="bg-slate-900 p-6 rounded-3xl border border-slate-800 shadow-sm flex items-center space-x-4">
+                        <div class="w-14 h-14 rounded-2xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center font-bold text-2xl">💰</div>
+                        <div>
+                            <p class="text-xs font-bold text-slate-400 uppercase tracking-wider">Volumen Vendido</p>
+                            <h3 id="stat-total-revenue" class="text-3xl font-black text-white mt-1">$0.00</h3>
+                        </div>
+                    </div>
+                    <div class="bg-slate-900 p-6 rounded-3xl border border-slate-800 shadow-sm flex items-center space-x-4">
+                        <div class="w-14 h-14 rounded-2xl bg-violet-500/10 text-violet-400 flex items-center justify-center font-bold text-2xl">🤝</div>
+                        <div>
+                            <p class="text-xs font-bold text-slate-400 uppercase tracking-wider">Comisiones a Pagar</p>
+                            <h3 id="stat-total-commissions" class="text-3xl font-black text-white mt-1">$0.00</h3>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-slate-900 rounded-3xl border border-slate-800 shadow-sm overflow-hidden">
+                    <div class="p-6 border-b border-slate-800 flex items-center justify-between">
+                        <h3 class="font-bold text-lg text-white">Historial de Ventas y Comisiones por Afiliado</h3>
+                        <span class="text-xs text-slate-400 font-semibold">Datos en tiempo real (Supabase)</span>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse text-sm">
+                            <thead>
+                                <tr class="bg-slate-950 text-slate-400 uppercase text-[11px] font-bold tracking-wider border-b border-slate-800">
+                                    <th class="px-6 py-4">Código</th>
+                                    <th class="px-6 py-4">Afiliado</th>
+                                    <th class="px-6 py-4 text-center">Ventas</th>
+                                    <th class="px-6 py-4">Total Movido</th>
+                                    <th class="px-6 py-4">Comisión Acumulada</th>
+                                </tr>
+                            </thead>
+                            <tbody id="sales-report-table" class="divide-y divide-slate-800 text-slate-300">
+                                <!-- Inyectado por JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 2: PRODUCTOS (CRUD) -->
+            <div id="admin-tab-products" class="admin-tab-content space-y-6 hidden animate-fade-in">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h3 class="text-xl font-bold text-white">Gestión de Productos</h3>
+                        <p class="text-xs text-slate-400">Añade, edita o elimina productos del catálogo</p>
+                    </div>
+                    <button id="add-product-btn" onclick="openProductModal()" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-6 py-3 rounded-xl shadow-md shadow-indigo-600/20 transition-all text-sm">
+                        + Nuevo Producto
+                    </button>
+                </div>
+
+                <div class="bg-slate-900 rounded-3xl border border-slate-800 shadow-sm overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse text-sm">
+                            <thead>
+                                <tr class="bg-slate-950 text-slate-400 uppercase text-[11px] font-bold tracking-wider border-b border-slate-800">
+                                    <th class="px-6 py-4">Imagen</th>
+                                    <th class="px-6 py-4">Nombre</th>
+                                    <th class="px-6 py-4">Categoría</th>
+                                    <th class="px-6 py-4">Precio</th>
+                                    <th class="px-6 py-4 text-right">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="admin-products-table" class="divide-y divide-slate-800 text-slate-300">
+                                <!-- Inyectado por JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 3: CATEGORÍAS -->
+            <div id="admin-tab-categories" class="admin-tab-content space-y-6 hidden animate-fade-in">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h3 class="text-xl font-bold text-white">Gestión de Categorías</h3>
+                        <p class="text-xs text-slate-400">Crea o elimina las categorías del catálogo</p>
+                    </div>
+                    <button id="add-category-btn" onclick="openCategoryModal()" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-6 py-3 rounded-xl shadow-md shadow-indigo-600/20 transition-all text-sm">
+                        + Nueva Categoría
+                    </button>
+                </div>
+
+                <div class="bg-slate-900 rounded-3xl border border-slate-800 shadow-sm p-6 max-w-xl">
+                    <div id="admin-categories-list" class="space-y-3">
+                        <!-- Inyectado por JS -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 4: AFILIADOS (CRUD) -->
+            <div id="admin-tab-affiliates" class="admin-tab-content space-y-6 hidden animate-fade-in">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h3 class="text-xl font-bold text-white">Gestión de Afiliados</h3>
+                        <p class="text-xs text-slate-400">Registra códigos, descuentos y comisiones</p>
+                    </div>
+                    <button id="add-affiliate-btn" onclick="openAffiliateModal()" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-6 py-3 rounded-xl shadow-md shadow-indigo-600/20 transition-all text-sm">
+                        + Nuevo Afiliado
+                    </button>
+                </div>
+
+                <div class="bg-slate-900 rounded-3xl border border-slate-800 shadow-sm overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse text-sm">
+                            <thead>
+                                <tr class="bg-slate-950 text-slate-400 uppercase text-[11px] font-bold tracking-wider border-b border-slate-800">
+                                    <th class="px-6 py-4">Código</th>
+                                    <th class="px-6 py-4">Afiliado</th>
+                                    <th class="px-6 py-4">Descuento Cliente</th>
+                                    <th class="px-6 py-4">Comisión Socio</th>
+                                    <th class="px-6 py-4 text-right">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="admin-affiliates-table" class="divide-y divide-slate-800 text-slate-300">
+                                <!-- Inyectado por JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- VISTA 3: PORTAL DE EMBAJADORES Y AFILIADOS -->
+    <!-- ========================================== -->
+    <div id="modalEmbajadores" class="flex flex-col flex-1 hidden bg-slate-950 text-slate-100 min-h-screen">
+        <div class="bg-slate-900 text-white border-b border-slate-800">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 bg-emerald-600 rounded-xl flex items-center justify-center font-bold text-xl text-white shadow-md">
+                        🤝
+                    </div>
+                    <div>
+                        <h2 class="text-xl font-bold tracking-tight">Portal de Embajadores</h2>
+                        <span class="text-xs text-emerald-400 font-semibold">TinajitoStore &middot; Panel de Afiliado</span>
+                    </div>
+                </div>
+                <button id="cerrarModalEmbajadores" class="bg-slate-800 hover:bg-slate-700 text-white px-5 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider transition-colors border border-slate-700">
+                    ← Volver a la Tienda
+                </button>
+            </div>
+        </div>
+
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 w-full flex-1">
+            <!-- LOGIN / SEARCH BLOCK -->
+            <div id="portal-login-section" class="max-w-md mx-auto bg-slate-900 rounded-3xl border border-slate-800 shadow-xl p-8 my-10">
+                <div class="text-center mb-6">
+                    <div class="w-16 h-16 bg-emerald-500/10 text-emerald-400 rounded-2xl flex items-center justify-center text-3xl mx-auto mb-4 border border-emerald-500/20">🔑</div>
+                    <h3 class="text-2xl font-black text-white">Acceso a Afiliados</h3>
+                    <p class="text-sm text-slate-400 mt-1">Ingresa tu código único para ver tus comisiones y estadísticas en tiempo real.</p>
+                </div>
+                <form id="portal-login-form" class="space-y-4" onsubmit="consultarEstadisticasAfiliado(); return false;">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Código de Afiliado</label>
+                        <input type="text" id="codigoAfiliado" required placeholder="Ej. JUAN10" class="w-full px-4 py-3.5 bg-slate-950 border border-slate-800 rounded-xl text-base font-bold uppercase text-white focus:outline-none focus:border-emerald-500 text-center tracking-wider">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Código de Acceso / PIN Secreto</label>
+                        <input type="password" id="pinAfiliado" required placeholder="••••" class="w-full px-4 py-3.5 bg-slate-950 border border-slate-800 rounded-xl text-base font-bold text-white focus:outline-none focus:border-emerald-500 text-center tracking-wider">
+                    </div>
+                    <button type="button" onclick="consultarEstadisticasAfiliado()" id="btnConsultarEstadisticas" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3.5 px-4 rounded-xl shadow-lg shadow-emerald-600/20 transition-all flex items-center justify-center space-x-2">
+                        <span>Consultar Mis Estadísticas</span>
+                    </button>
+                </form>
+                <div id="portal-login-error" class="mt-4 text-center text-xs font-semibold text-rose-400 hidden"></div>
+            </div>
+
+            <!-- DASHBOARD SECTION -->
+            <div id="portal-dashboard-section" class="space-y-8 hidden animate-fade-in">
+                <!-- Welcome Banner & Logout -->
+                <div class="bg-slate-900 rounded-3xl border border-slate-800 p-6 sm:p-8 shadow-sm flex flex-col md:flex-row items-center justify-between gap-6">
+                    <div class="flex items-center space-x-4">
+                        <div class="w-16 h-16 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-400 text-white flex items-center justify-center text-2xl font-black shadow-md" id="portal-avatar-initials">
+                            AP
+                        </div>
+                        <div>
+                            <span class="text-xs font-bold text-emerald-400 uppercase tracking-wider">Embajador Verificado</span>
+                            <h3 id="portal-affiliate-name" class="text-2xl font-black text-white">Nombre del Afiliado</h3>
+                            <p class="text-xs text-slate-400 mt-0.5">Código Único: <span id="portal-affiliate-code" class="font-mono font-bold text-slate-200 bg-slate-800 px-2 py-0.5 rounded">CÓDIGO</span> &middot; Descuento Cliente: <span id="portal-affiliate-discount" class="font-bold text-slate-200">0%</span></p>
+                        </div>
+                    </div>
+                    <button id="portal-logout-btn" onclick="cerrarSesionEmbajador()" class="bg-slate-800 hover:bg-slate-700 text-slate-200 px-5 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider transition-colors border border-slate-700">
+                        Cambiar / Cerrar Sesión
+                    </button>
+                </div>
+
+                <!-- KPI CARDS -->
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                    <div class="bg-slate-900 p-6 rounded-3xl border border-slate-800 shadow-sm flex items-center space-x-4">
+                        <div class="w-14 h-14 rounded-2xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center font-bold text-2xl">🛍️</div>
+                        <div>
+                            <p class="text-xs font-bold text-slate-400 uppercase tracking-wider">Ventas Referidas</p>
+                            <h3 id="portal-stat-sales" class="text-3xl font-black text-white mt-1">0</h3>
+                        </div>
+                    </div>
+                    <div class="bg-slate-900 p-6 rounded-3xl border border-slate-800 shadow-sm flex items-center space-x-4">
+                        <div class="w-14 h-14 rounded-2xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center font-bold text-2xl">💰</div>
+                        <div>
+                            <p class="text-xs font-bold text-slate-400 uppercase tracking-wider">Volumen Movido</p>
+                            <h3 id="portal-stat-revenue" class="text-3xl font-black text-white mt-1">$0.00</h3>
+                        </div>
+                    </div>
+                    <div class="bg-slate-900 p-6 rounded-3xl border border-slate-800 shadow-sm flex items-center space-x-4">
+                        <div class="w-14 h-14 rounded-2xl bg-violet-500/10 text-violet-400 flex items-center justify-center font-bold text-2xl">🤝</div>
+                        <div>
+                            <p class="text-xs font-bold text-slate-400 uppercase tracking-wider">Comisión Acumulada</p>
+                            <h3 id="portal-stat-commission" class="text-3xl font-black text-white mt-1">$0.00</h3>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- WHATSAPP REFERRAL LINK GENERATOR -->
+                <div class="bg-slate-900 rounded-3xl border border-slate-800 p-6 sm:p-8 shadow-sm">
+                    <h3 class="font-bold text-lg text-white mb-2">Tu Enlace Personalizado de Referido</h3>
+                    <p class="text-sm text-slate-400 mb-4">Comparte este enlace con tus amigos y clientes. Cuando compren, se aplicará su descuento y ganarás tu comisión automáticamente.</p>
+                    <div class="flex flex-col sm:flex-row gap-3">
+                        <input type="text" id="portal-referral-link" readonly class="flex-1 px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-sm font-mono text-slate-300 focus:outline-none">
+                        <button id="portal-copy-link-btn" class="bg-slate-800 hover:bg-slate-700 text-white font-bold px-6 py-3 rounded-xl text-sm transition-all shadow-sm border border-slate-700">
+                            📋 Copiar Enlace
+                        </button>
+                        <button id="portal-whatsapp-share-btn" class="bg-[#25D366] hover:bg-[#20ba5a] text-white font-bold px-6 py-3 rounded-xl text-sm transition-all shadow-sm flex items-center justify-center space-x-2">
+                            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448L.057 24zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/></svg>
+                            <span>Compartir en WhatsApp</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- TRANSACTION HISTORY TABLE -->
+                <div class="bg-slate-900 rounded-3xl border border-slate-800 shadow-sm overflow-hidden">
+                    <div class="p-6 border-b border-slate-800 flex items-center justify-between">
+                        <h3 class="font-bold text-lg text-white">Historial de Ventas y Comisiones</h3>
+                        <span class="text-xs text-slate-400 font-semibold">Sincronización en vivo</span>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse text-sm">
+                            <thead>
+                                <tr class="bg-slate-950 text-slate-400 uppercase text-[11px] font-bold tracking-wider border-b border-slate-800">
+                                    <th class="px-6 py-4">Fecha / ID</th>
+                                    <th class="px-6 py-4">Cliente</th>
+                                    <th class="px-6 py-4">Monto Venta</th>
+                                    <th class="px-6 py-4">Tu Comisión</th>
+                                    <th class="px-6 py-4 text-center">Estado</th>
+                                </tr>
+                            </thead>
+                            <tbody id="portal-sales-table" class="divide-y divide-slate-800 text-slate-300">
+                                <!-- Inyectado por JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- PANEL LATERAL DEL CARRITO (DRAWER) -->
+    <div id="cart-overlay" class="fixed inset-0 bg-slate-950/70 backdrop-blur-xs z-50 opacity-0 pointer-events-none transition-opacity duration-300"></div>
+    <div id="cart-drawer" class="fixed inset-y-0 right-0 max-w-md w-full bg-slate-900 text-slate-100 shadow-2xl z-50 transform translate-x-full transition-transform duration-300 ease-in-out flex flex-col border-l border-slate-800">
+        <div class="p-6 border-b border-slate-800 flex items-center justify-between bg-slate-900/90">
+            <div class="flex items-center space-x-2.5">
+                <div class="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"></path>
+                    </svg>
+                </div>
+                <h3 class="font-bold text-base text-white">Tu Carrito de Compras</h3>
+            </div>
+            <button id="close-cart" class="text-slate-400 hover:text-white p-2 rounded-xl hover:bg-slate-800 transition-colors">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+            </button>
+        </div>
+
+        <div id="cart-items" class="flex-1 overflow-y-auto p-6 space-y-4 cart-scroll">
+            <div id="empty-cart-msg" class="text-center py-20">
+                <svg class="w-16 h-16 mx-auto text-slate-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"></path>
+                </svg>
+                <p class="text-slate-300 font-semibold">Tu carrito está vacío</p>
+                <p class="text-xs text-slate-500 mt-1">Explora el catálogo y añade productos</p>
+            </div>
+        </div>
+
+        <!-- Carrito Footer & Afiliados -->
+        <div id="cart-footer" class="p-6 border-t border-slate-800 bg-slate-900/95 hidden">
+            <!-- Sección de Código de Afiliado -->
+            <div class="mb-4 pb-4 border-b border-slate-800">
+                <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Código de Afiliado / Referido</label>
+                <div class="flex space-x-2">
+                    <input type="text" id="affiliate-input" placeholder="Ej. JUAN10" class="flex-1 px-3.5 py-2.5 bg-slate-950 border border-slate-800 rounded-xl text-sm text-slate-100 uppercase focus:outline-none focus:border-emerald-500 font-medium placeholder-slate-600">
+                    <button type="button" id="apply-affiliate-btn" class="bg-slate-800 hover:bg-emerald-600 text-white font-medium px-4 py-2.5 rounded-xl text-sm transition-colors shadow-xs border border-slate-700">Aplicar</button>
+                </div>
+                <!-- Feedback del Afiliado -->
+                <div id="affiliate-feedback" class="mt-2 text-xs font-medium hidden"></div>
+            </div>
+
+            <div class="space-y-2 mb-5">
+                <div class="flex justify-between text-sm text-slate-400">
+                    <span>Subtotal</span>
+                    <span id="cart-subtotal" class="font-semibold text-slate-200">$0.00</span>
+                </div>
+                <!-- Fila de Descuento (Dinámica) -->
+                <div id="discount-row" class="flex justify-between text-sm text-emerald-400 hidden font-medium">
+                    <span id="discount-label">Descuento (Afiliado)</span>
+                    <span id="cart-discount">-$0.00</span>
+                </div>
+                <div class="flex justify-between text-sm text-slate-400">
+                    <span>Envío</span>
+                    <span class="text-indigo-400 font-semibold">A coordinar</span>
+                </div>
+                <div class="flex justify-between text-base font-bold text-white pt-3 border-t border-slate-800">
+                    <span>Total Final</span>
+                    <span id="cart-total">$0.00</span>
+                </div>
+            </div>
+
+            <button id="open-checkout-btn" class="w-full bg-[#25D366] hover:bg-[#20ba5a] text-white font-bold py-3.5 px-4 rounded-xl shadow-lg shadow-emerald-500/20 transition-all duration-300 flex items-center justify-center space-x-2.5 whatsapp-pulse">
+                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448L.057 24zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/></svg>
+                <span>Enviar Pedido por WhatsApp</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- MODAL DE CHECKOUT / DATOS DEL CLIENTE -->
+    <div id="checkout-modal" class="fixed inset-0 bg-slate-950/70 z-50 hidden items-center justify-center p-4 backdrop-blur-sm">
+        <div class="bg-slate-900 rounded-3xl max-w-md w-full p-6 sm:p-8 shadow-2xl relative animate-fade-in border border-slate-800 text-slate-100">
+            <button id="close-checkout-btn" class="absolute top-6 right-6 text-slate-400 hover:text-white p-1.5 rounded-lg hover:bg-slate-800 transition-colors">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+            </button>
+
+            <div class="flex items-center space-x-3 mb-6">
+                <div class="w-12 h-12 bg-emerald-500/20 rounded-2xl flex items-center justify-center text-emerald-400">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path>
+                    </svg>
+                </div>
+                <div>
+                    <h3 class="text-xl font-bold text-white">Datos de Envío</h3>
+                    <p class="text-xs text-slate-400">Para completar tu pedido por WhatsApp</p>
+                </div>
+            </div>
+
+            <form id="checkout-form" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Nombre Completo</label>
+                    <input type="text" id="client-name" required placeholder="Ej. Carlos Pérez" class="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-emerald-500 transition-all">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Teléfono / WhatsApp</label>
+                    <input type="tel" id="client-phone" required placeholder="Ej. +53 53554857" class="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-emerald-500 transition-all">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Dirección de Entrega</label>
+                    <input type="text" id="client-address" required placeholder="Ej. Av. 23 #456, Vedado" class="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-emerald-500 transition-all">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Método de Pago</label>
+                    <select id="client-payment" class="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-sm text-slate-100 focus:outline-none focus:border-emerald-500 transition-all">
+                        <option value="Transferencia Bancaria">Transferencia Bancaria</option>
+                        <option value="Efectivo contra entrega">Efectivo contra entrega</option>
+                        <option value="Mercado Pago / MLC">Mercado Pago / MLC</option>
+                    </select>
+                </div>
+
+                <button type="submit" class="w-full bg-[#25D366] hover:bg-[#20ba5a] text-white font-bold py-3.5 px-4 rounded-xl shadow-lg shadow-emerald-500/20 transition-all flex items-center justify-center space-x-2 mt-2">
+                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448L.057 24zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/></svg>
+                    <span>Generar y Enviar WhatsApp</span>
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL CRUD PRODUCTO -->
+    <div id="product-modal" class="fixed inset-0 bg-slate-950/70 z-50 hidden items-center justify-center p-4 backdrop-blur-sm">
+        <div class="bg-slate-900 text-slate-100 rounded-3xl max-w-lg w-full p-6 sm:p-8 shadow-2xl relative animate-fade-in border border-slate-800 max-h-[90vh] overflow-y-auto cart-scroll">
+            <h3 id="product-modal-title" class="text-xl font-bold text-white mb-6">Nuevo Producto</h3>
+            <form id="product-form" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-400 uppercase mb-1">Nombre del Producto</label>
+                    <input type="text" id="prod-name" required class="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-sm text-slate-100 focus:outline-none focus:border-emerald-500 font-medium">
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-400 uppercase mb-1">Categoría</label>
+                        <select id="prod-category" class="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-sm text-slate-100 focus:outline-none focus:border-emerald-500 font-medium"></select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-400 uppercase mb-1">Precio ($)</label>
+                        <input type="number" step="0.01" id="prod-price" required class="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-sm text-slate-100 focus:outline-none focus:border-emerald-500 font-medium">
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-400 uppercase mb-1">Precio Original ($)</label>
+                        <input type="number" step="0.01" id="prod-original-price" class="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-sm text-slate-100 focus:outline-none focus:border-emerald-500 font-medium">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-400 uppercase mb-1">Etiqueta (Ej. Oferta)</label>
+                        <input type="text" id="prod-badge" class="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-sm text-slate-100 focus:outline-none focus:border-emerald-500 font-medium">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-400 uppercase mb-1">URL de la Imagen</label>
+                    <input type="url" id="prod-image" required placeholder="https://..." class="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-sm text-slate-100 focus:outline-none focus:border-emerald-500 font-medium">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-400 uppercase mb-1">Descripción</label>
+                    <textarea id="prod-desc" rows="3" required class="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-sm text-slate-100 focus:outline-none focus:border-emerald-500 font-medium"></textarea>
+                </div>
+                <div class="flex space-x-3 pt-4">
+                    <button type="button" onclick="closeProductModal()" class="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold py-3 rounded-xl text-sm transition-colors border border-slate-700">Cancelar</button>
+                    <button type="submit" class="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 rounded-xl text-sm shadow-md">Guardar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL CRUD CATEGORÍA -->
+    <div id="cat-modal" class="fixed inset-0 bg-slate-950/70 z-50 hidden items-center justify-center p-4 backdrop-blur-sm">
+        <div class="bg-slate-900 text-slate-100 rounded-3xl max-w-sm w-full p-6 sm:p-8 shadow-2xl relative animate-fade-in border border-slate-800">
+            <h3 class="text-xl font-bold text-white mb-4">Nueva Categoría</h3>
+            <form id="category-form" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-400 uppercase mb-1">Nombre de la Categoría</label>
+                    <input type="text" id="cat-name" required placeholder="Ej. Tablets" class="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-sm text-slate-100 focus:outline-none focus:border-emerald-500 font-medium">
+                </div>
+                <div class="flex space-x-3 pt-2">
+                    <button type="button" onclick="closeCategoryModal()" class="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold py-3 rounded-xl text-sm transition-colors border border-slate-700">Cancelar</button>
+                    <button type="submit" class="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 rounded-xl text-sm">Añadir</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL CRUD AFILIADO -->
+    <div id="affiliate-modal" class="fixed inset-0 bg-slate-950/70 z-50 hidden items-center justify-center p-4 backdrop-blur-sm">
+        <div class="bg-slate-900 text-slate-100 rounded-3xl max-w-md w-full p-6 sm:p-8 shadow-2xl relative animate-fade-in border border-slate-800">
+            <h3 id="affiliate-modal-title" class="text-xl font-bold text-white mb-6">Nuevo Afiliado</h3>
+            <form id="affiliate-form" class="space-y-4">
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-400 uppercase mb-1">Código Único</label>
+                        <input type="text" id="aff-code" required placeholder="Ej. CARLOS15" class="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-sm text-slate-100 uppercase focus:outline-none focus:border-emerald-500 font-bold">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-400 uppercase mb-1">Nombre / Socio</label>
+                        <input type="text" id="aff-name" required placeholder="Ej. Carlos Ruiz" class="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-sm text-slate-100 focus:outline-none focus:border-emerald-500 font-medium">
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-400 uppercase mb-1">Descuento Cliente (%)</label>
+                        <input type="number" step="0.5" id="aff-discount" required placeholder="10" class="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-sm text-slate-100 focus:outline-none focus:border-emerald-500 font-medium">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-400 uppercase mb-1">Comisión Socio (%)</label>
+                        <input type="number" step="0.5" id="aff-commission" required placeholder="10" class="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-sm text-slate-100 focus:outline-none focus:border-emerald-500 font-medium">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-400 uppercase mb-1">Código de Acceso / PIN Secreto</label>
+                    <input type="text" id="aff-pin" required placeholder="Ej. 1234" class="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-sm text-slate-100 focus:outline-none focus:border-emerald-500 font-medium">
+                </div>
+                <div class="flex space-x-3 pt-4">
+                    <button type="button" onclick="closeAffiliateModal()" class="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold py-3 rounded-xl text-sm transition-colors border border-slate-700">Cancelar</button>
+                    <button type="submit" class="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 rounded-xl text-sm shadow-md">Guardar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL LOGIN DE ADMINISTRADOR -->
+    <div id="admin-login-modal" class="fixed inset-0 bg-slate-950/70 z-50 hidden items-center justify-center p-4 backdrop-blur-sm">
+        <div class="bg-slate-900 text-slate-100 rounded-3xl max-w-sm w-full p-6 sm:p-8 shadow-2xl relative animate-fade-in border border-slate-800">
+            <h3 class="text-xl font-bold text-white mb-1">Acceso de Administrador</h3>
+            <p class="text-xs text-slate-400 mb-6">Inicia sesión con tu cuenta de administrador.</p>
+            <form id="admin-login-form" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-400 uppercase mb-1">Correo</label>
+                    <input type="email" id="admin-email" required autocomplete="username" class="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-sm text-slate-100 focus:outline-none focus:border-emerald-500 font-medium">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-400 uppercase mb-1">Contraseña</label>
+                    <input type="password" id="admin-password" required autocomplete="current-password" class="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-sm text-slate-100 focus:outline-none focus:border-emerald-500 font-medium">
+                </div>
+                <div id="admin-login-error" class="text-xs font-semibold text-rose-400 hidden"></div>
+                <div class="flex space-x-3 pt-2">
+                    <button type="button" id="close-admin-login-btn" class="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold py-3 rounded-xl text-sm transition-colors border border-slate-700">Cancelar</button>
+                    <button type="submit" class="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 rounded-xl text-sm shadow-md">Entrar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- TOAST DE NOTIFICACIÓN -->
+    <div id="notification-toast" class="fixed bottom-6 left-1/2 transform -translate-x-1/2 translate-y-20 opacity-0 bg-slate-900 text-white px-6 py-3.5 rounded-2xl shadow-2xl transition-all duration-300 z-50 text-sm font-medium flex items-center space-x-2.5 border border-slate-800">
+        <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+        <span id="toast-text">¡Producto añadido al carrito!</span>
+    </div>
+
+    <!-- FOOTER -->
+    <footer class="bg-slate-950 text-slate-400 py-12 border-t border-slate-800 shadow-inner">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row items-center justify-between gap-6 text-center md:text-left">
+            <div>
+                <span class="text-lg font-bold text-white tracking-tight">TinajitoStore & More</span>
+                <p class="text-sm mt-1 text-slate-400">Tienda online con sistema de referidos y pedidos por WhatsApp.</p>
+                <p class="text-xs text-slate-500 font-medium mt-2">Desarrollado por <a href="https://d-nexus.github.io/dnexus/" target="_blank" rel="noopener noreferrer" class="text-emerald-400 hover:text-emerald-300 transition-colors font-semibold">D-Nexus</a></p>
+            </div>
+            <div class="text-sm text-slate-500 flex items-center justify-center md:justify-start space-x-2">
+                <span>&copy; 2026 TinajitoStore. Todos los derechos reservados.</span>
+                <a href="#" id="admin-footer-link" class="text-slate-600 hover:text-emerald-400 text-xs transition-colors ml-1" title="Panel de Administración" aria-label="Panel de Administración">⚙️</a>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Script de la aplicación -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="config.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
