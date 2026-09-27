@@ -46,3 +46,16 @@ body {
 .whatsapp-pulse {
     animation: pulse-whatsapp 2s infinite;
 }
+
+/* Hero Video Performance & Accessibility Optimizations */
+.hero-video-perf {
+    will-change: transform;
+    transform: translateZ(0);
+    backface-visibility: hidden;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    #hero-video {
+        display: none !important;
+    }
+}
