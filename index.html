@@ -6,12 +6,40 @@
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdn.tailwindcss.com; connect-src 'self' https://rdjamvejcippipjjrplc.supabase.co https://*.supabase.co; img-src 'self' data: https:; style-src 'self' 'unsafe-inline' https:;">
     <title>TinajitoStore | Tienda Online con Afiliados y WhatsApp</title>
     <meta name="description" content="TinajitoStore: bazar online de tecnología, audio, moda y accesorios. Pide por WhatsApp y usa códigos de descuento de nuestros embajadores.">
+    <link rel="canonical" href="https://d-nexus.github.io/tinajitostore/">
+    <meta name="robots" content="index, follow">
+
+    <!-- Open Graph / redes sociales -->
     <meta property="og:type" content="website">
+    <meta property="og:site_name" content="TinajitoStore">
+    <meta property="og:url" content="https://d-nexus.github.io/tinajitostore/">
     <meta property="og:title" content="TinajitoStore | Tienda Online con Afiliados y WhatsApp">
     <meta property="og:description" content="Explora nuestro catálogo, aplica un código de afiliado y pide al instante por WhatsApp.">
-    <meta property="og:image" content="image/Tinajito.png">
+    <meta property="og:image" content="https://d-nexus.github.io/tinajitostore/image/Tinajito.png">
+    <meta property="og:locale" content="es_ES">
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="TinajitoStore | Tienda Online con Afiliados y WhatsApp">
+    <meta name="twitter:description" content="Explora nuestro catálogo, aplica un código de afiliado y pide al instante por WhatsApp.">
+    <meta name="twitter:image" content="https://d-nexus.github.io/tinajitostore/image/Tinajito.png">
+
     <link rel="icon" type="image/png" href="image/favicon.png">
     <link rel="apple-touch-icon" href="image/favicon.png">
+
+    <!-- Datos estructurados para Google (rich results / knowledge panel) -->
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "Store",
+        "name": "TinajitoStore",
+        "url": "https://d-nexus.github.io/tinajitostore/",
+        "image": "https://d-nexus.github.io/tinajitostore/image/Tinajito.png",
+        "description": "Bazar online de tecnología, audio, moda y accesorios. Pide por WhatsApp y usa códigos de descuento de nuestros embajadores.",
+        "priceRange": "$$",
+        "sameAs": []
+    }
+    </script>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -41,6 +69,18 @@
     <link rel="stylesheet" href="styles.css">
 </head>
 <body class="bg-slate-950 text-slate-100 antialiased min-h-screen flex flex-col">
+
+    <!-- Contenido de respaldo para buscadores/lectores que no ejecutan
+         JavaScript: el catálogo real se carga después vía Supabase, así
+         que esto asegura que exista texto indexable desde el primer HTML. -->
+    <noscript>
+        <div style="padding:2rem;max-width:700px;margin:0 auto;font-family:sans-serif;color:#e2e8f0;background:#0f172a;">
+            <h1>TinajitoStore — Tienda Online</h1>
+            <p>Bazar online de tecnología, audio, moda y accesorios. Pide por WhatsApp y usa códigos de descuento de nuestros embajadores.</p>
+            <p>Categorías disponibles: tecnología, audio, moda y accesorios.</p>
+            <p>Activa JavaScript en tu navegador para ver el catálogo completo y realizar pedidos.</p>
+        </div>
+    </noscript>
 
     <!-- HEADER / NAVBAR -->
     <header class="sticky top-0 z-40 bg-slate-950/90 backdrop-blur-md border-b border-slate-800 shadow-2xl transition-all">
