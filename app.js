@@ -406,12 +406,12 @@ function renderCategoryFilters() {
     const container = document.getElementById('category-filters-container');
     if (!container) return;
 
-    let html = `<button data-category="all" class="category-filter-btn category-btn px-4.5 py-2.5 rounded-xl text-sm font-medium transition-all shrink-0 ${currentCategoryFilter === 'all' ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-600/20' : 'bg-slate-900 text-slate-300 border border-slate-800 hover:bg-slate-800'}">Todos</button>`;
+    let html = `<button data-category="all" class="category-filter-btn category-btn px-5 py-2 rounded-full text-xs sm:text-sm font-medium transition-all shrink-0 ${currentCategoryFilter === 'all' ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20' : 'bg-slate-900 text-slate-300 border border-slate-800 hover:bg-slate-800'}">Todos</button>`;
 
     // data-category + listener delegado en vez de onclick="...('${cat}')":
     // así un nombre de categoría con comillas no puede romper el atributo.
     html += categories.map(cat => `
-        <button data-category="${escapeHtml(cat)}" class="category-filter-btn category-btn px-4.5 py-2.5 rounded-xl text-sm font-medium transition-all shrink-0 capitalize ${currentCategoryFilter === cat ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-600/20' : 'bg-slate-900 text-slate-300 border border-slate-800 hover:bg-slate-800'}">
+        <button data-category="${escapeHtml(cat)}" class="category-filter-btn category-btn px-5 py-2 rounded-full text-xs sm:text-sm font-medium transition-all shrink-0 capitalize ${currentCategoryFilter === cat ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20' : 'bg-slate-900 text-slate-300 border border-slate-800 hover:bg-slate-800'}">
             ${escapeHtml(cat)}
         </button>
     `).join('');
