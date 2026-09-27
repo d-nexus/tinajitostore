@@ -79,13 +79,13 @@
 
     <!-- HEADER / NAVBAR -->
     <header class="sticky top-0 z-40 bg-slate-950/90 backdrop-blur-md border-b border-slate-800 shadow-2xl transition-all">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-24 sm:h-28 flex items-center justify-between">
+        <div class="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-3 sm:py-0 sm:h-28 flex flex-wrap sm:flex-nowrap items-center justify-between gap-2.5 sm:gap-4">
             <!-- Logo -->
-            <a href="index.html" id="nav-store-btn" class="flex items-center space-x-3.5 cursor-pointer group">
-                <img src="image/Tinajito.png" alt="TinajitoStore Logo" class="w-14 h-14 sm:w-16 sm:h-16 rounded-full object-cover shadow-md group-hover:scale-105 transition-transform duration-300 border border-slate-700">
+            <a href="index.html" id="nav-store-btn" class="flex items-center space-x-2.5 sm:space-x-3.5 cursor-pointer group">
+                <img src="image/Tinajito.png" alt="TinajitoStore Logo" class="w-12 h-12 sm:w-16 sm:h-16 rounded-full object-cover shadow-md group-hover:scale-105 transition-transform duration-300 border border-slate-700">
                 <div>
-                    <span class="text-xl sm:text-2xl font-black tracking-tight text-white">Tinajito<span class="text-emerald-400">Store</span></span>
-                    <span class="block text-[10px] sm:text-xs text-slate-400 uppercase tracking-widest font-semibold">E-Commerce & Referidos</span>
+                    <span class="text-lg sm:text-2xl font-black tracking-tight text-white">Tinajito<span class="text-emerald-400">Store</span></span>
+                    <span class="block text-[9px] sm:text-xs text-slate-400 uppercase tracking-widest font-semibold">E-Commerce & Referidos</span>
                 </div>
             </a>
 
@@ -102,36 +102,36 @@
             </div>
 
             <!-- Actions / Cart Button -->
-            <div class="flex items-center space-x-3">
-                <button id="btnEmbajadores" class="inline-flex items-center gap-1.5 px-3 py-2 sm:px-4 sm:py-2 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 rounded-full font-medium transition-all duration-200 text-xs sm:text-sm border border-emerald-500/20">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+            <div class="flex items-center space-x-2 sm:space-x-3">
+                <button id="btnEmbajadores" class="inline-flex items-center gap-1 px-2.5 py-1.5 sm:px-4 sm:py-2 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 rounded-full font-medium transition-all duration-200 text-xs sm:text-sm border border-emerald-500/20">
+                    <svg class="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
                     <span>Afiliados</span>
                 </button>
-                <button id="cart-btn" class="relative inline-flex items-center gap-1.5 px-3 py-2 sm:px-4 sm:py-2 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 rounded-full font-medium transition-all duration-200 text-xs sm:text-sm border border-emerald-500/20 group">
-                    <svg class="w-4 h-4 text-emerald-400 group-hover:text-emerald-300 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <button id="cart-btn" class="relative inline-flex items-center gap-1 px-2.5 py-1.5 sm:px-4 sm:py-2 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 rounded-full font-medium transition-all duration-200 text-xs sm:text-sm border border-emerald-500/20 group">
+                    <svg class="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-400 group-hover:text-emerald-300 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"></path>
                     </svg>
                     <span>Carrito</span>
-                    <span id="cart-count" class="absolute -top-1 -right-1 bg-rose-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold shadow-sm hidden">0</span>
+                    <span id="cart-count" class="absolute -top-1 -right-1 bg-rose-500 text-white text-[10px] sm:text-xs rounded-full w-4 h-4 sm:w-5 sm:h-5 flex items-center justify-center font-bold shadow-sm hidden">0</span>
                 </button>
             </div>
         </div>
 
         <!-- Search Bar (Mobile) -->
-        <div class="md:hidden px-4 pb-3">
+        <div class="md:hidden px-3 pb-2.5">
             <div class="relative w-full">
-                <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
                     </svg>
                 </span>
-                <input type="text" id="search-input-mobile" placeholder="Buscar productos..." class="w-full pl-10 pr-4 py-2.5 bg-slate-900 border border-slate-800 rounded-xl text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:bg-slate-900 focus:border-emerald-500">
+                <input type="text" id="search-input-mobile" placeholder="Buscar productos..." class="w-full pl-9 pr-4 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs sm:text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:bg-slate-900 focus:border-emerald-500">
             </div>
         </div>
 
         <!-- Filtros por Categoría (Menú de Navegación Principal) -->
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-3 pt-1 border-t border-slate-800/80 overflow-x-auto">
-            <div id="category-filters-container" class="flex items-center justify-center space-x-2 py-1">
+        <div class="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 pb-2.5 pt-1 border-t border-slate-800/80 overflow-x-auto">
+            <div id="category-filters-container" class="flex items-center justify-start sm:justify-center space-x-2 py-1 min-w-max">
                 <!-- Inyectado por JS -->
             </div>
         </div>
