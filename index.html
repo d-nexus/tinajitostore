@@ -3,29 +3,94 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdn.tailwindcss.com; connect-src 'self' https://rdjamvejcippipjjrplc.supabase.co https://*.supabase.co; img-src 'self' data: https:; style-src 'self' 'unsafe-inline' https:;">
     <title>TinajitoStore | Tienda Online con Afiliados y WhatsApp</title>
     <meta name="description" content="TinajitoStore: bazar online de tecnología, audio, moda y accesorios. Pide por WhatsApp y usa códigos de descuento de nuestros embajadores.">
+    <link rel="canonical" href="https://d-nexus.github.io/tinajitostore/">
+    <meta name="robots" content="index, follow">
+
+    <!-- Open Graph / redes sociales -->
     <meta property="og:type" content="website">
+    <meta property="og:site_name" content="TinajitoStore">
+    <meta property="og:url" content="https://d-nexus.github.io/tinajitostore/">
     <meta property="og:title" content="TinajitoStore | Tienda Online con Afiliados y WhatsApp">
     <meta property="og:description" content="Explora nuestro catálogo, aplica un código de afiliado y pide al instante por WhatsApp.">
-    <meta property="og:image" content="image/Tinajito.png">
+    <meta property="og:image" content="https://d-nexus.github.io/tinajitostore/image/Tinajito.png">
+    <meta property="og:locale" content="es_ES">
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="TinajitoStore | Tienda Online con Afiliados y WhatsApp">
+    <meta name="twitter:description" content="Explora nuestro catálogo, aplica un código de afiliado y pide al instante por WhatsApp.">
+    <meta name="twitter:image" content="https://d-nexus.github.io/tinajitostore/image/Tinajito.png">
+
     <link rel="icon" type="image/png" href="image/favicon.png">
     <link rel="apple-touch-icon" href="image/favicon.png">
+
+    <!-- Datos estructurados para Google (rich results / knowledge panel) -->
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "Store",
+        "name": "TinajitoStore",
+        "url": "https://d-nexus.github.io/tinajitostore/",
+        "image": "https://d-nexus.github.io/tinajitostore/image/Tinajito.png",
+        "description": "Bazar online de tecnología, audio, moda y accesorios. Pide por WhatsApp y usa códigos de descuento de nuestros embajadores.",
+        "priceRange": "$$",
+        "sameAs": []
+    }
+    </script>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        slate: {
+                            50: '#f8fafc',
+                            100: '#f1f5f9',
+                            200: '#e2e8f0',
+                            300: '#cbd5e1',
+                            400: '#94a3b8',
+                            500: '#64748b',
+                            600: '#475569',
+                            700: '#334155',
+                            800: '#1e293b',
+                            900: '#0f172a',
+                            950: '#020617',
+                        }
+                    }
+                }
+            }
+        };
+    </script>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body class="bg-slate-950 text-slate-100 antialiased min-h-screen flex flex-col">
 
+    <!-- Contenido de respaldo para buscadores/lectores que no ejecutan
+         JavaScript: el catálogo real se carga después vía Supabase, así
+         que esto asegura que exista texto indexable desde el primer HTML. -->
+    <noscript>
+        <div style="padding:2rem;max-width:700px;margin:0 auto;font-family:sans-serif;color:#e2e8f0;background:#0f172a;">
+            <h1>TinajitoStore — Tienda Online</h1>
+            <p>Bazar online de tecnología, audio, moda y accesorios. Pide por WhatsApp y usa códigos de descuento de nuestros embajadores.</p>
+            <p>Categorías disponibles: tecnología, audio, moda y accesorios.</p>
+            <p>Activa JavaScript en tu navegador para ver el catálogo completo y realizar pedidos.</p>
+        </div>
+    </noscript>
+
     <!-- HEADER / NAVBAR -->
     <header class="sticky top-0 z-40 bg-slate-950/90 backdrop-blur-md border-b border-slate-800 shadow-2xl transition-all">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-24 sm:h-28 flex items-center justify-between">
+        <div class="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-3 sm:py-0 sm:h-28 flex flex-wrap sm:flex-nowrap items-center justify-between gap-2.5 sm:gap-4">
             <!-- Logo -->
-            <a href="#" id="nav-store-btn" class="flex items-center space-x-3.5 cursor-pointer group">
-                <img src="image/Tinajito.png" alt="TinajitoStore Logo" class="w-14 h-14 sm:w-16 sm:h-16 rounded-full object-cover shadow-md group-hover:scale-105 transition-transform duration-300 border border-slate-700">
+            <a href="#" id="nav-store-btn" class="flex items-center space-x-2.5 sm:space-x-3.5 cursor-pointer group">
+                <img src="image/Tinajito.png" alt="TinajitoStore Logo" class="w-12 h-12 sm:w-16 sm:h-16 rounded-full object-cover shadow-md group-hover:scale-105 transition-transform duration-300 border border-slate-700">
                 <div>
-                    <span class="text-xl sm:text-2xl font-black tracking-tight text-white">Tinajito<span class="text-emerald-400">Store</span></span>
-                    <span class="block text-[10px] sm:text-xs text-slate-400 uppercase tracking-widest font-semibold">E-Commerce & Referidos</span>
+                    <span class="text-lg sm:text-2xl font-black tracking-tight text-white">Tinajito<span class="text-emerald-400">Store</span></span>
+                    <span class="block text-[9px] sm:text-xs text-slate-400 uppercase tracking-widest font-semibold">E-Commerce & Referidos</span>
                 </div>
             </a>
 
@@ -42,30 +107,37 @@
             </div>
 
             <!-- Actions / Cart Button -->
-            <div class="flex items-center space-x-3">
-                <button id="btnEmbajadores" class="inline-flex items-center gap-1.5 px-3 py-2 sm:px-4 sm:py-2 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 rounded-full font-medium transition-all duration-200 text-xs sm:text-sm border border-emerald-500/20">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
+            <div class="flex items-center space-x-2 sm:space-x-3">
+                <button id="btnEmbajadores" class="inline-flex items-center gap-1 px-2.5 py-1.5 sm:px-4 sm:py-2 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 rounded-full font-medium transition-all duration-200 text-xs sm:text-sm border border-emerald-500/20">
+                    <svg class="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
                     <span>Afiliados</span>
                 </button>
-                <button id="cart-btn" class="relative inline-flex items-center gap-1.5 px-3 py-2 sm:px-4 sm:py-2 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 rounded-full font-medium transition-all duration-200 text-xs sm:text-sm border border-emerald-500/20 group">
-                    <svg class="w-4 h-4 text-emerald-400 group-hover:text-emerald-300 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <button id="cart-btn" class="relative inline-flex items-center gap-1 px-2.5 py-1.5 sm:px-4 sm:py-2 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 rounded-full font-medium transition-all duration-200 text-xs sm:text-sm border border-emerald-500/20 group">
+                    <svg class="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-400 group-hover:text-emerald-300 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"></path>
                     </svg>
                     <span>Carrito</span>
-                    <span id="cart-count" class="absolute -top-1 -right-1 bg-rose-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold shadow-sm hidden">0</span>
+                    <span id="cart-count" class="absolute -top-1 -right-1 bg-rose-500 text-white text-[10px] sm:text-xs rounded-full w-4 h-4 sm:w-5 sm:h-5 flex items-center justify-center font-bold shadow-sm hidden">0</span>
                 </button>
             </div>
         </div>
 
         <!-- Search Bar (Mobile) -->
-        <div class="md:hidden px-4 pb-3">
+        <div class="md:hidden px-3 pb-2.5">
             <div class="relative w-full">
-                <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
                     </svg>
                 </span>
-                <input type="text" id="search-input-mobile" placeholder="Buscar productos..." class="w-full pl-10 pr-4 py-2.5 bg-slate-900 border border-slate-800 rounded-xl text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:bg-slate-900 focus:border-emerald-500">
+                <input type="text" id="search-input-mobile" placeholder="Buscar productos..." class="w-full pl-9 pr-4 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs sm:text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:bg-slate-900 focus:border-emerald-500">
+            </div>
+        </div>
+
+        <!-- Filtros por Categoría (Menú de Navegación Principal) -->
+        <div class="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 pb-2.5 pt-1 border-t border-slate-800/80 overflow-x-auto">
+            <div id="category-filters-container" class="flex items-center justify-start sm:justify-center space-x-2 py-1 min-w-max">
+                <!-- Inyectado por JS -->
             </div>
         </div>
     </header>
@@ -125,16 +197,9 @@
 
         <!-- CATALOGO DE PRODUCTOS -->
         <main id="catalogo" class="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 w-full">
-            <div class="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
-                <div>
-                    <h2 class="text-2xl font-bold text-white tracking-tight">Catálogo Destacado</h2>
-                    <p class="text-sm text-slate-400 mt-0.5">Elige tus productos y aplica tu código en el carrito</p>
-                </div>
-
-                <!-- Filtros por Categoría Dinámicos -->
-                <div id="category-filters-container" class="flex items-center space-x-2 overflow-x-auto pb-2 md:pb-0">
-                    <!-- Inyectado por JS -->
-                </div>
+            <div class="mb-8">
+                <h2 class="text-2xl font-bold text-white tracking-tight">Catálogo Destacado</h2>
+                <p class="text-sm text-slate-400 mt-0.5">Elige tus productos y aplica tu código en el carrito</p>
             </div>
 
             <!-- Grid de Productos -->
@@ -719,7 +784,7 @@
     </footer>
 
     <!-- Script de la aplicación -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4"></script>
     <script src="config.js"></script>
     <script src="app.js"></script>
 </body>
