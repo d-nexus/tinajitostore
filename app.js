@@ -101,6 +101,36 @@ async function initializeAppAsync() {
     }
 }
 
+// --- CACHÉ DEL CATÁLOGO (sessionStorage) ---
+// Objetivo: al navegar entre index.html / audio.html / moda.html / etc. (páginas
+// distintas, con recarga completa) no hacer esperar al visitante la misma
+// consulta a Supabase una y otra vez. Vive solo en esta pestaña (sessionStorage)
+// y se refresca solo, así que nunca queda "pegada" para siempre.
+const CATALOG_CACHE_KEY = 'nexus_catalog_cache_v1';
+const CATALOG_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutos
+
+function readCatalogCache() {
+    try {
+        const raw = sessionStorage.getItem(CATALOG_CACHE_KEY);
+        if (!raw) return null;
+        const parsed = JSON.parse(raw);
+        if (!parsed || !Array.isArray(parsed.products) || !Array.isArray(parsed.categories) || typeof parsed.ts !== 'number') {
+            return null;
+        }
+        return parsed;
+    } catch (err) {
+        return null; // caché corrupta o sessionStorage no disponible (modo privado, etc.)
+    }
+}
+
+function writeCatalogCache(cats, prods) {
+    try {
+        sessionStorage.setItem(CATALOG_CACHE_KEY, JSON.stringify({ categories: cats, products: prods, ts: Date.now() }));
+    } catch (err) {
+        // No es crítico: si falla, simplemente no hay caché y se sigue pidiendo a Supabase.
+    }
+}
+
 async function loadCatalog() {
     if (!supabase) {
         showConnectionError('Falta configurar la conexión a la base de datos en config.js');
@@ -108,6 +138,19 @@ async function loadCatalog() {
         return;
     }
 
+    // 1) Si hay una copia reciente en caché, pintamos con ella de inmediato
+    //    (percepción de carga instantánea) mientras se confirma en segundo plano.
+    let paintedFromCache = false;
+    const cached = readCatalogCache();
+    if (cached && (Date.now() - cached.ts) < CATALOG_CACHE_TTL_MS) {
+        categories = cached.categories;
+        products = cached.products;
+        initStoreView();
+        paintedFromCache = true;
+    }
+
+    // 2) Siempre se confirma contra Supabase (esto es lo que deja el dato fresco
+    //    y correcto, tanto en la primera carga como para refrescar la caché).
     try {
         const timeoutPromise = new Promise((_, reject) => 
             setTimeout(() => reject(new Error('Timeout al conectar con Supabase')), 8000)
@@ -138,11 +181,16 @@ async function loadCatalog() {
             badge: p.badge
         }));
 
+        writeCatalogCache(categories, products);
         initStoreView();
     } catch (err) {
         console.error('Error al cargar catálogo:', err);
-        showConnectionError('No se pudo establecer conexión con Supabase. Puedes interactuar con la interfaz visual y el carrito localmente.');
-        initStoreView();
+        // Si ya habíamos pintado con la caché, la dejamos visible en vez de taparla
+        // con un aviso de error: es mejor mostrar datos un poco viejos que nada.
+        if (!paintedFromCache) {
+            showConnectionError('No se pudo establecer conexión con Supabase. Puedes interactuar con la interfaz visual y el carrito localmente.');
+            initStoreView();
+        }
     }
 }
 
@@ -403,7 +451,7 @@ let currentCategoryFilter = initialCategoryFilter;
 
 function initStoreView() {
     renderCategoryFilters();
-    renderProducts(products);
+    applySearchAndFilter(); // antes llamaba a renderProducts(products) sin filtrar: en audio.html, moda.html, etc. se veía SIEMPRE el catálogo completo, ignorando la categoría de la página.
     updateCartUI();
     if (activeAffiliate && document.getElementById('affiliate-input')) {
         document.getElementById('affiliate-input').value = activeAffiliate.codigo;
@@ -451,7 +499,7 @@ function applySearchAndFilter() {
 
     const filtered = products.filter(p => {
         const matchesCategory = currentCategoryFilter === 'all' || p.category === currentCategoryFilter;
-        const matchesQuery = p.name.toLowerCase().includes(query) || p.description.toLowerCase().includes(query);
+        const matchesQuery = (p.name || '').toLowerCase().includes(query) || (p.description || '').toLowerCase().includes(query);
         return matchesCategory && matchesQuery;
     });
 
