@@ -391,7 +391,15 @@ async function switchView(view) {
 /* ==========================================
    MÓDULO: TIENDA PÚBLICA
    ========================================== */
-let currentCategoryFilter = 'all';
+// Determinar filtro de categoría inicial según la página actual
+const pathName = window.location.pathname.split('/').pop().toLowerCase();
+let initialCategoryFilter = 'all';
+if (pathName.includes('accesorios')) initialCategoryFilter = 'accesorios';
+else if (pathName.includes('audio')) initialCategoryFilter = 'audio';
+else if (pathName.includes('moda')) initialCategoryFilter = 'moda';
+else if (pathName.includes('tecnologia')) initialCategoryFilter = 'tecnologia';
+
+let currentCategoryFilter = initialCategoryFilter;
 
 function initStoreView() {
     renderCategoryFilters();
@@ -406,20 +414,30 @@ function renderCategoryFilters() {
     const container = document.getElementById('category-filters-container');
     if (!container) return;
 
-    let html = `<button data-category="all" class="category-filter-btn category-btn px-5 py-2 rounded-full text-xs sm:text-sm font-medium transition-all shrink-0 ${currentCategoryFilter === 'all' ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-md shadow-emerald-600/30 border border-emerald-500' : 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20'}">Todos</button>`;
+    const currentPath = window.location.pathname.split('/').pop() || 'index.html';
 
-    // data-category + listener delegado en vez de onclick="...('${cat}')":
-    // así un nombre de categoría con comillas no puede romper el atributo.
-    html += categories.map(cat => `
-        <button data-category="${escapeHtml(cat)}" class="category-filter-btn category-btn px-5 py-2 rounded-full text-xs sm:text-sm font-medium transition-all shrink-0 capitalize ${currentCategoryFilter === cat ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-md shadow-emerald-600/30 border border-emerald-500' : 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20'}">
-            ${escapeHtml(cat)}
-        </button>
-    `).join('');
+    const isTodosActive = currentPath === '' || currentPath === 'index.html';
+    let html = `<a href="index.html" class="category-filter-btn category-btn px-5 py-2 rounded-full text-xs sm:text-sm font-medium transition-all shrink-0 ${isTodosActive ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-md shadow-emerald-600/30 border border-emerald-500' : 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20'}">Todos</a>`;
+
+    const categoryFiles = {
+        'accesorios': 'accesorios.html',
+        'audio': 'audio.html',
+        'moda': 'moda.html',
+        'tecnologia': 'tecnologia.html'
+    };
+
+    html += categories.map(cat => {
+        const lowerCat = cat.toLowerCase();
+        const fileName = categoryFiles[lowerCat] || `${lowerCat}.html`;
+        const isActive = currentPath === fileName;
+        return `
+            <a href="${fileName}" class="category-filter-btn category-btn px-5 py-2 rounded-full text-xs sm:text-sm font-medium transition-all shrink-0 capitalize ${isActive ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-md shadow-emerald-600/30 border border-emerald-500' : 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20'}">
+                ${escapeHtml(cat)}
+            </a>
+        `;
+    }).join('');
 
     container.innerHTML = html;
-    container.querySelectorAll('.category-filter-btn').forEach(btn => {
-        btn.addEventListener('click', () => filterByCategory(btn.dataset.category));
-    });
 }
 
 function filterByCategory(category) {
