@@ -4,14 +4,13 @@
    ========================================== */
 
 // --- CLIENTE SUPABASE ---
-// Reutilizamos la variable global 'supabase' provista por el CDN sin declarar const ni let.
-try {
-    if (typeof supabase !== 'undefined' && typeof supabase.createClient === 'function' && typeof SUPABASE_URL !== 'undefined' && typeof SUPABASE_ANON_KEY !== 'undefined') {
-        supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-    }
-} catch (err) {
-    console.error('Error al inicializar Supabase:', err);
-}
+// SUPABASE_URL / SUPABASE_ANON_KEY vienen de config.js (se carga antes que
+// este archivo). La anon key NO es secreta: está pensada para vivir en el
+// navegador de cualquier visitante. La seguridad real la dan las políticas
+// RLS definidas en supabase/schema.sql, no el ocultar esta llave.
+const supabase = (window.SUPABASE_URL && window.SUPABASE_ANON_KEY && window.supabase)
+    ? window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY)
+    : null;
 
 // --- SEGURIDAD: ESCAPE DE HTML (anti-XSS) ---
 // Cualquier dato que venga de un formulario (nombre de producto, categoría,
@@ -49,115 +48,70 @@ let currentAmbassador = null; // nunca se persiste (ni él ni su PIN) en el nave
 const STORE_WHATSAPP_NUMBER = "5353554857";
 
 // --- INICIALIZACIÓN ---
-document.addEventListener('DOMContentLoaded', () => {
-    // 1. Inicializar la interfaz y los escuchadores de eventos ('click') de inmediato,
-    // de forma independiente al estado de la red o Supabase.
-    setupGlobalEvents();
-    initStoreView();
-
+document.addEventListener('DOMContentLoaded', async () => {
     if (!supabase) {
-        showConnectionError('Falta configurar la conexión a la base de datos en config.js');
+        showConfigError();
         return;
     }
 
-    // 2. Manejar las peticiones a Supabase de manera asíncrona sin bloquear la UI ni los eventos.
-    initializeAppAsync();
+    await loadCatalog();
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const refCode = urlParams.get('ref');
+    if (refCode) {
+        const found = await fetchPublicAffiliate(refCode);
+        if (found) {
+            activeAffiliate = found;
+            setStorage('active_affiliate', activeAffiliate);
+        }
+    }
+
+    initStoreView();
+    setupGlobalEvents();
 });
 
-function showConnectionError(message) {
+function showConfigError() {
     const grid = document.getElementById('products-grid');
-    if (grid && products.length === 0) {
+    if (grid) {
         grid.innerHTML = `
-            <div class="col-span-full text-center py-16 bg-slate-900 rounded-3xl border border-slate-800 px-6">
-                <svg class="w-12 h-12 mx-auto text-amber-500 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
-                </svg>
-                <h3 class="text-base font-semibold text-amber-400">Aviso de Conexión</h3>
-                <p class="text-slate-400 text-sm mt-1">${escapeHtml(message)}</p>
+            <div class="col-span-full text-center py-20 bg-slate-900 rounded-3xl border border-slate-800">
+                <h3 class="text-base font-semibold text-rose-400">Falta configurar la conexión a la base de datos</h3>
+                <p class="text-slate-400 text-sm mt-1">Completa SUPABASE_URL y SUPABASE_ANON_KEY en config.js</p>
             </div>`;
     }
 }
 
-async function initializeAppAsync() {
-    try {
-        await loadCatalog();
-    } catch (err) {
-        console.error('Error al cargar catálogo en segundo plano:', err);
-    }
-
-    try {
-        const urlParams = new URLSearchParams(window.location.search);
-        const refCode = urlParams.get('ref');
-        if (refCode) {
-            const found = await fetchPublicAffiliate(refCode);
-            if (found) {
-                activeAffiliate = found;
-                setStorage('active_affiliate', activeAffiliate);
-                updateCartUI();
-            }
-        }
-    } catch (err) {
-        console.error('Error al procesar enlace de referido:', err);
-    }
-}
-
 async function loadCatalog() {
-    if (!supabase) {
-        showConnectionError('Falta configurar la conexión a la base de datos en config.js');
-        initStoreView();
-        return;
-    }
+    const grid = document.getElementById('products-grid');
+    if (grid) grid.innerHTML = `<div class="col-span-full text-center py-20 text-slate-400">Cargando catálogo...</div>`;
 
-    try {
-        const timeoutPromise = new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Timeout al conectar con Supabase')), 8000)
-        );
+    const [{ data: cats, error: catErr }, { data: prods, error: prodErr }] = await Promise.all([
+        supabase.from('categories').select('name').order('name'),
+        supabase.from('products').select('*').order('id')
+    ]);
 
-        const fetchPromise = Promise.all([
-            supabase.from('categories').select('name').order('name'),
-            supabase.from('products').select('*').order('id')
-        ]);
+    if (catErr) console.error('Error cargando categorías:', catErr.message);
+    if (prodErr) console.error('Error cargando productos:', prodErr.message);
 
-        const [{ data: cats, error: catErr }, { data: prods, error: prodErr }] = await Promise.race([
-            fetchPromise,
-            timeoutPromise
-        ]);
-
-        if (catErr) console.error('Error cargando categorías:', catErr.message);
-        if (prodErr) console.error('Error cargando productos:', prodErr.message);
-
-        categories = (cats || []).map(c => c.name);
-        products = (prods || []).map(p => ({
-            id: p.id,
-            name: p.name,
-            category: p.category,
-            price: Number(p.price),
-            originalPrice: p.original_price !== null ? Number(p.original_price) : null,
-            image: p.image,
-            description: p.description,
-            badge: p.badge
-        }));
-
-        initStoreView();
-    } catch (err) {
-        console.error('Error al cargar catálogo:', err);
-        showConnectionError('No se pudo establecer conexión con Supabase. Puedes interactuar con la interfaz visual y el carrito localmente.');
-        initStoreView();
-    }
+    categories = (cats || []).map(c => c.name);
+    products = (prods || []).map(p => ({
+        id: p.id,
+        name: p.name,
+        category: p.category,
+        price: Number(p.price),
+        originalPrice: p.original_price !== null ? Number(p.original_price) : null,
+        image: p.image,
+        description: p.description,
+        badge: p.badge
+    }));
 }
 
 // Datos públicos de un afiliado (para mostrar el % de descuento en el
 // carrito). Nunca expone el PIN ni la comisión.
 async function fetchPublicAffiliate(codigo) {
-    if (!supabase) return null;
-    try {
-        const { data, error } = await supabase.rpc('get_public_affiliate', { p_codigo: codigo });
-        if (error || !data || data.length === 0) return null;
-        return data[0];
-    } catch (err) {
-        console.error('Error al obtener afiliado público:', err);
-        return null;
-    }
+    const { data, error } = await supabase.rpc('get_public_affiliate', { p_codigo: codigo });
+    if (error || !data || data.length === 0) return null;
+    return data[0];
 }
 
 // --- CONFIGURACIÓN DE EVENTOS GLOBALES ---
@@ -299,51 +253,30 @@ async function handleAdminLogin(e) {
     const email = document.getElementById('admin-email').value.trim();
     const password = document.getElementById('admin-password').value;
     const errorDiv = document.getElementById('admin-login-error');
-    if (errorDiv) errorDiv.classList.add('hidden');
+    errorDiv.classList.add('hidden');
 
-    if (!supabase) {
-        if (errorDiv) {
-            errorDiv.textContent = 'Cliente de Supabase no inicializado.';
-            errorDiv.classList.remove('hidden');
-        }
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error || !data.session) {
+        errorDiv.textContent = 'Correo o contraseña incorrectos.';
+        errorDiv.classList.remove('hidden');
         return;
     }
 
-    try {
-        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error || !data.session) {
-            if (errorDiv) {
-                errorDiv.textContent = 'Correo o contraseña incorrectos.';
-                errorDiv.classList.remove('hidden');
-            }
-            return;
-        }
-
-        const allowed = await checkIsAdmin();
-        if (!allowed) {
-            await supabase.auth.signOut();
-            if (errorDiv) {
-                errorDiv.textContent = 'Esta cuenta no tiene permisos de administrador.';
-                errorDiv.classList.remove('hidden');
-            }
-            return;
-        }
-
-        closeAdminLoginModal();
-        switchView('admin');
-    } catch (err) {
-        console.error('Error en autenticación de admin:', err);
-        if (errorDiv) {
-            errorDiv.textContent = 'Error de conexión al iniciar sesión.';
-            errorDiv.classList.remove('hidden');
-        }
+    const allowed = await checkIsAdmin();
+    if (!allowed) {
+        await supabase.auth.signOut();
+        errorDiv.textContent = 'Esta cuenta no tiene permisos de administrador.';
+        errorDiv.classList.remove('hidden');
+        return;
     }
+
+    closeAdminLoginModal();
+    switchView('admin');
 }
 
 // Comprueba, contra la base de datos (no contra nada guardado en el
 // navegador), si el usuario con sesión iniciada está en la tabla admins.
 async function checkIsAdmin() {
-    if (!supabase) return false;
     const { data: sessionData } = await supabase.auth.getSession();
     if (!sessionData.session) return false;
     const { data, error } = await supabase
@@ -391,15 +324,7 @@ async function switchView(view) {
 /* ==========================================
    MÓDULO: TIENDA PÚBLICA
    ========================================== */
-// Determinar filtro de categoría inicial según la página actual
-const pathName = window.location.pathname.split('/').pop().toLowerCase();
-let initialCategoryFilter = 'all';
-if (pathName.includes('accesorios')) initialCategoryFilter = 'accesorios';
-else if (pathName.includes('audio')) initialCategoryFilter = 'audio';
-else if (pathName.includes('moda')) initialCategoryFilter = 'moda';
-else if (pathName.includes('tecnologia')) initialCategoryFilter = 'tecnologia';
-
-let currentCategoryFilter = initialCategoryFilter;
+let currentCategoryFilter = 'all';
 
 function initStoreView() {
     renderCategoryFilters();
@@ -414,30 +339,20 @@ function renderCategoryFilters() {
     const container = document.getElementById('category-filters-container');
     if (!container) return;
 
-    const currentPath = window.location.pathname.split('/').pop() || 'index.html';
+    let html = `<button data-category="all" class="category-filter-btn category-btn px-4.5 py-2.5 rounded-xl text-sm font-medium transition-all shrink-0 ${currentCategoryFilter === 'all' ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-600/20' : 'bg-slate-900 text-slate-300 border border-slate-800 hover:bg-slate-800'}">Todos</button>`;
 
-    const isTodosActive = currentPath === '' || currentPath === 'index.html';
-    let html = `<a href="index.html" class="category-filter-btn category-btn px-5 py-2 rounded-full text-xs sm:text-sm font-medium transition-all shrink-0 ${isTodosActive ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-md shadow-emerald-600/30 border border-emerald-500' : 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20'}">Todos</a>`;
-
-    const categoryFiles = {
-        'accesorios': 'accesorios.html',
-        'audio': 'audio.html',
-        'moda': 'moda.html',
-        'tecnologia': 'tecnologia.html'
-    };
-
-    html += categories.map(cat => {
-        const lowerCat = cat.toLowerCase();
-        const fileName = categoryFiles[lowerCat] || `${lowerCat}.html`;
-        const isActive = currentPath === fileName;
-        return `
-            <a href="${fileName}" class="category-filter-btn category-btn px-5 py-2 rounded-full text-xs sm:text-sm font-medium transition-all shrink-0 capitalize ${isActive ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-md shadow-emerald-600/30 border border-emerald-500' : 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20'}">
-                ${escapeHtml(cat)}
-            </a>
-        `;
-    }).join('');
+    // data-category + listener delegado en vez de onclick="...('${cat}')":
+    // así un nombre de categoría con comillas no puede romper el atributo.
+    html += categories.map(cat => `
+        <button data-category="${escapeHtml(cat)}" class="category-filter-btn category-btn px-4.5 py-2.5 rounded-xl text-sm font-medium transition-all shrink-0 capitalize ${currentCategoryFilter === cat ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-600/20' : 'bg-slate-900 text-slate-300 border border-slate-800 hover:bg-slate-800'}">
+            ${escapeHtml(cat)}
+        </button>
+    `).join('');
 
     container.innerHTML = html;
+    container.querySelectorAll('.category-filter-btn').forEach(btn => {
+        btn.addEventListener('click', () => filterByCategory(btn.dataset.category));
+    });
 }
 
 function filterByCategory(category) {

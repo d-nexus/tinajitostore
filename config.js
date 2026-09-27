@@ -9,9 +9,5 @@
    tus datos la dan las políticas de seguridad (RLS) que quedaron
    definidas en supabase/schema.sql, no el mantener esta llave en secreto.
 */
-const SUPABASE_URL = "https://rdjamvejcippipjjrplc.supabase.co";
-const SUPABASE_ANON_KEY = "sb_publishable_lxWm08Sjk-__m-ax-KUd-Q_wRblGtKh";
-
-// Definición global explícita en window para asegurar disponibilidad en app.js
-window.SUPABASE_URL = SUPABASE_URL;
-window.SUPABASE_ANON_KEY = SUPABASE_ANON_KEY;
+window.SUPABASE_URL = "https://TU-PROYECTO.supabase.co";
+window.SUPABASE_ANON_KEY = "TU-ANON-KEY-PUBLICA";
