@@ -133,6 +133,13 @@
                 <input type="text" id="search-input-mobile" placeholder="Buscar productos..." class="w-full pl-10 pr-4 py-2.5 bg-slate-900 border border-slate-800 rounded-xl text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:bg-slate-900 focus:border-emerald-500">
             </div>
         </div>
+
+        <!-- Filtros por Categoría (Menú de Navegación Principal) -->
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-3 pt-1 border-t border-slate-800/80 overflow-x-auto">
+            <div id="category-filters-container" class="flex items-center space-x-2 py-1">
+                <!-- Inyectado por JS -->
+            </div>
+        </div>
     </header>
 
     <!-- ========================================== -->
@@ -190,16 +197,9 @@
 
         <!-- CATALOGO DE PRODUCTOS -->
         <main id="catalogo" class="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 w-full">
-            <div class="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
-                <div>
-                    <h2 class="text-2xl font-bold text-white tracking-tight">Catálogo Destacado</h2>
-                    <p class="text-sm text-slate-400 mt-0.5">Elige tus productos y aplica tu código en el carrito</p>
-                </div>
-
-                <!-- Filtros por Categoría Dinámicos -->
-                <div id="category-filters-container" class="flex items-center space-x-2 overflow-x-auto pb-2 md:pb-0">
-                    <!-- Inyectado por JS -->
-                </div>
+            <div class="mb-8">
+                <h2 class="text-2xl font-bold text-white tracking-tight">Catálogo Destacado</h2>
+                <p class="text-sm text-slate-400 mt-0.5">Elige tus productos y aplica tu código en el carrito</p>
             </div>
 
             <!-- Grid de Productos -->
