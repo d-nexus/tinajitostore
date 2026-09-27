@@ -39,6 +39,19 @@ create table if not exists products (
     created_at     timestamptz default now()
 );
 
+-- Datos del proveedor real de cada producto (tú eres intermediario). Va en su
+-- PROPIA tabla, separada de "products", a propósito: "products" tiene lectura
+-- pública (para que la tienda funcione), y aquí NO se define ninguna política
+-- para el público ni para "anon" — sin política de select = nadie fuera de
+-- un admin autenticado puede leer esta tabla, ni siquiera con la anon key
+-- directamente desde la consola del navegador.
+create table if not exists product_suppliers (
+    product_id bigint primary key references products(id) on delete cascade,
+    nombre     text,
+    telefono   text,
+    updated_at timestamptz default now()
+);
+
 -- El PIN NUNCA se guarda en texto plano: solo su hash (pin_hash),
 -- generado con crypt()/gen_salt('bf') = bcrypt.
 create table if not exists affiliates (
@@ -76,6 +89,7 @@ alter table products   enable row level security;
 alter table affiliates enable row level security;
 alter table sales      enable row level security;
 alter table admins     enable row level security;
+alter table product_suppliers enable row level security;
 
 create or replace function is_admin()
 returns boolean
@@ -97,6 +111,12 @@ create policy "public read products" on products for select using (true);
 create policy "admin write products" on products for insert with check (is_admin());
 create policy "admin update products" on products for update using (is_admin()) with check (is_admin());
 create policy "admin delete products" on products for delete using (is_admin());
+
+-- Proveedores: nada de política pública. Sin una política de "select" para
+-- el rol "anon"/"public", Postgres deniega por defecto — un visitante normal
+-- no puede leer esta tabla aunque la pida directamente por la API.
+create policy "admin manage product_suppliers" on product_suppliers for all
+    using (is_admin()) with check (is_admin());
 
 -- Afiliados: SOLO administradores autenticados pueden ver/editar la tabla
 -- directamente (y aun así, el pin_hash no sirve de nada sin el PIN real).

@@ -808,6 +808,7 @@ function quickView(productId) {
 let editingProductId = null;
 let editingAffiliateId = null;
 let lastAdminAffiliates = [];
+let productSuppliers = {}; // { [product_id]: {nombre, telefono} } — SOLO se llena dentro del panel admin, nunca se mezcla con `products` (que sí se cachea/muestra en la tienda pública).
 
 function initAdminView() {
     switchAdminTab('dashboard');
@@ -883,14 +884,43 @@ async function renderAdminDashboard() {
 }
 
 // --- 2. GESTIÓN DE PRODUCTOS (CRUD) ---
-function renderAdminProducts() {
+
+// Trae el proveedor real de cada producto. Esta tabla NO tiene política
+// pública en Supabase: si quien llama no es un admin autenticado, Supabase
+// simplemente devuelve 0 filas (no un error), así que esta función es segura
+// de llamar siempre, pero solo se usa aquí, dentro del panel admin.
+async function loadProductSuppliers() {
+    const { data, error } = await supabase.from('product_suppliers').select('product_id, nombre, telefono');
+    if (error) {
+        console.error('Error cargando proveedores:', error.message);
+        productSuppliers = {};
+        return;
+    }
+    productSuppliers = {};
+    (data || []).forEach(row => {
+        productSuppliers[row.product_id] = { nombre: row.nombre || '', telefono: row.telefono || '' };
+    });
+}
+
+async function renderAdminProducts() {
+    await loadProductSuppliers();
+
     const tbody = document.getElementById('admin-products-table');
     if (products.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="5" class="px-6 py-10 text-center text-slate-500">No hay productos registrados.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="6" class="px-6 py-10 text-center text-slate-500">No hay productos registrados.</td></tr>`;
         return;
     }
 
-    tbody.innerHTML = products.map(p => `
+    tbody.innerHTML = products.map(p => {
+        const supplier = productSuppliers[p.id] || { nombre: '', telefono: '' };
+        const supplierCell = supplier.nombre || supplier.telefono
+            ? `<div class="text-xs">
+                   <p class="font-semibold text-white">${escapeHtml(supplier.nombre || '(sin nombre)')}</p>
+                   ${supplier.telefono ? `<a href="https://wa.me/${escapeHtml(supplier.telefono.replace(/\D/g, ''))}" target="_blank" rel="noopener" class="text-emerald-400 hover:text-emerald-300 font-medium">${escapeHtml(supplier.telefono)}</a>` : ''}
+               </div>`
+            : `<span class="text-slate-600 text-xs italic">Sin asignar</span>`;
+
+        return `
         <tr class="hover:bg-slate-800/50 transition-colors">
             <td class="px-6 py-4">
                 <img src="${escapeHtml(p.image)}" loading="lazy" class="w-12 h-12 object-cover rounded-xl bg-slate-950 border border-slate-800" onerror="this.src='https://images.unsplash.com/photo-1584438784894-089d6a62b8fa?auto=format&fit=crop&w=600&q=80'">
@@ -898,13 +928,16 @@ function renderAdminProducts() {
             <td class="px-6 py-4 font-bold text-white">${escapeHtml(p.name)}</td>
             <td class="px-6 py-4"><span class="bg-indigo-500/10 text-indigo-400 font-semibold px-2.5 py-1 rounded-lg text-xs capitalize">${escapeHtml(p.category)}</span></td>
             <td class="px-6 py-4 font-extrabold text-white">$${p.price.toFixed(2)}</td>
+            <td class="px-6 py-4">${supplierCell}</td>
             <td class="px-6 py-4 text-right space-x-2">
                 <button onclick="openProductModal(${p.id})" class="text-indigo-400 hover:text-indigo-300 font-semibold text-xs bg-indigo-500/10 hover:bg-indigo-500/20 px-3 py-1.5 rounded-lg transition-colors">Editar</button>
                 <button onclick="deleteProduct(${p.id})" class="text-rose-400 hover:text-rose-300 font-semibold text-xs bg-rose-500/10 hover:bg-rose-500/20 px-3 py-1.5 rounded-lg transition-colors">Eliminar</button>
             </td>
         </tr>
-    `).join('');
+    `;
+    }).join('');
 }
+
 
 function openProductModal(id = null) {
     if (id instanceof Event || (id && typeof id === 'object' && id.target)) {
@@ -929,6 +962,9 @@ function openProductModal(id = null) {
             document.getElementById('prod-image').value = p.image;
             document.getElementById('prod-desc').value = p.description;
         }
+        const supplier = productSuppliers[id] || { nombre: '', telefono: '' };
+        document.getElementById('prod-supplier-name').value = supplier.nombre;
+        document.getElementById('prod-supplier-phone').value = supplier.telefono;
     } else {
         title.textContent = "Nuevo Producto";
         const form = document.getElementById('product-form');
@@ -955,16 +991,38 @@ async function handleSaveProduct(e) {
     const badge = document.getElementById('prod-badge').value.trim() || null;
     const image = document.getElementById('prod-image').value.trim();
     const description = document.getElementById('prod-desc').value.trim();
+    const supplierName = document.getElementById('prod-supplier-name').value.trim() || null;
+    const supplierPhone = document.getElementById('prod-supplier-phone').value.trim() || null;
 
     const payload = { name, category, price, original_price: originalPrice, badge, image, description };
 
-    const { error } = editingProductId
-        ? await supabase.from('products').update(payload).eq('id', editingProductId)
-        : await supabase.from('products').insert(payload);
+    let productId = editingProductId;
+    let error;
+
+    if (editingProductId) {
+        ({ error } = await supabase.from('products').update(payload).eq('id', editingProductId));
+    } else {
+        // Necesitamos el id del producto recién creado para poder guardar su proveedor.
+        const inserted = await supabase.from('products').insert(payload).select('id').single();
+        error = inserted.error;
+        productId = inserted.data ? inserted.data.id : null;
+    }
 
     if (error) {
         alert('No se pudo guardar el producto: ' + error.message);
         return;
+    }
+
+    // El proveedor vive en su propia tabla (product_suppliers), invisible para
+    // el público. Si el admin no puso nombre ni teléfono, igual guardamos la
+    // fila (en null) para no dejar basura de una versión anterior del producto.
+    if (productId) {
+        const { error: supplierError } = await supabase
+            .from('product_suppliers')
+            .upsert({ product_id: productId, nombre: supplierName, telefono: supplierPhone });
+        if (supplierError) {
+            console.error('No se pudo guardar el proveedor:', supplierError.message);
+        }
     }
 
     await loadCatalog();
