@@ -862,23 +862,68 @@ async function sendWhatsAppOrder(e) {
 
     const finalTotal = Math.max(0, subtotal - discountAmount);
 
-    const message = `🛍️ *NUEVO PEDIDO - TINAJITOSTORE* 🛍️\n\n` +
-        `👤 *Cliente:* ${name}\n` +
-        `📱 *Teléfono:* ${phone}\n` +
-        `📍 *Dirección:* ${address}\n` +
+    // Referencia solo para la conversación de WhatsApp: aún no existe una
+    // tabla de "pedidos" (solo se guardan ventas con código de afiliado),
+    // así que este número ayuda a identificar el pedido en el chat pero
+    // no está ligado a ningún registro en la base de datos.
+    const orderRef = buildOrderReference();
+
+    const itemsCount = cart.reduce((acc, item) => acc + item.quantity, 0);
+
+    const message = `🛍️ *NUEVO PEDIDO — TINAJITOSTORE*\n` +
+        `🔖 *Referencia:* ${orderRef}\n` +
+        `\n👤 *${name}*\n` +
+        `📱 ${phone}\n` +
+        `📍 ${address}\n` +
         `💳 *Pago:* ${payment}\n` +
         (affiliateInfoText ? `\n${affiliateInfoText}` : '') +
         `\n-----------------------------------\n` +
-        `📦 *DETALLE DEL PEDIDO:*\n\n${itemsText}\n\n` +
+        `📦 *DETALLE (${itemsCount} artículo${itemsCount === 1 ? '' : 's'}):*\n\n${itemsText}\n\n` +
         `-----------------------------------\n` +
-        `💰 *TOTAL FINAL: $${finalTotal.toFixed(2)}*\n\n` +
-        `¡Hola! Me gustaría confirmar este pedido. Quedo atento.`;
+        (discountAmount > 0 ? `Subtotal: $${subtotal.toFixed(2)}\nDescuento: -$${discountAmount.toFixed(2)}\n` : '') +
+        `💰 *TOTAL: $${finalTotal.toFixed(2)}*\n\n` +
+        `¡Hola! Quiero confirmar este pedido (Ref. ${orderRef}). Quedo atento 🙌`;
 
     const whatsappUrl = `https://wa.me/${STORE_WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`;
 
     document.getElementById('checkout-modal').classList.add('hidden');
     document.getElementById('checkout-modal').classList.remove('flex');
+
+    // El carrito se vacía porque el pedido ya quedó armado en el mensaje;
+    // si el cliente vuelve, no debería reencontrarse el mismo pedido "a medias".
+    cart = [];
+    setStorage('cart', cart);
+    updateCartUI();
+    toggleCart(); // cierra el panel del carrito si estaba abierto
+
     window.open(whatsappUrl, '_blank');
+    showOrderConfirmation(orderRef);
+}
+
+// Referencia corta y legible: TJ-AAMMDD-XXXX
+function buildOrderReference() {
+    const d = new Date();
+    const pad = n => String(n).padStart(2, '0');
+    const datePart = `${String(d.getFullYear()).slice(2)}${pad(d.getMonth() + 1)}${pad(d.getDate())}`;
+    const rand = Math.random().toString(36).slice(2, 6).toUpperCase();
+    return `TJ-${datePart}-${rand}`;
+}
+
+// Pantalla simple de "pedido enviado" tras abrir WhatsApp.
+function showOrderConfirmation(orderRef) {
+    const modal = document.getElementById('order-confirmation-modal');
+    if (!modal) return;
+    document.getElementById('order-confirmation-ref').textContent = orderRef;
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+}
+
+function closeOrderConfirmation() {
+    const modal = document.getElementById('order-confirmation-modal');
+    if (modal) {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    }
 }
 
 function showToast(text) {
