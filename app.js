@@ -106,7 +106,7 @@ async function initializeAppAsync() {
 // distintas, con recarga completa) no hacer esperar al visitante la misma
 // consulta a Supabase una y otra vez. Vive solo en esta pestaña (sessionStorage)
 // y se refresca solo, así que nunca queda "pegada" para siempre.
-const CATALOG_CACHE_KEY = 'nexus_catalog_cache_v1';
+const CATALOG_CACHE_KEY = 'nexus_catalog_cache_v2';
 const CATALOG_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutos
 
 function readCatalogCache() {
@@ -178,7 +178,8 @@ async function loadCatalog() {
             originalPrice: p.original_price !== null ? Number(p.original_price) : null,
             image: p.image,
             description: p.description,
-            badge: p.badge
+            badge: p.badge,
+            affiliateDiscount: Number(p.descuento_afiliado || 0) // pesos por unidad; es público (se ve como ahorro en el carrito)
         }));
 
         writeCatalogCache(categories, products);
@@ -194,8 +195,8 @@ async function loadCatalog() {
     }
 }
 
-// Datos públicos de un afiliado (para mostrar el % de descuento en el
-// carrito). Nunca expone el PIN ni la comisión.
+// Datos públicos de un afiliado (solo código y nombre, para validar el
+// código en el carrito). Nunca expone el PIN ni la comisión.
 async function fetchPublicAffiliate(codigo) {
     if (!supabase) return null;
     try {
@@ -208,8 +209,22 @@ async function fetchPublicAffiliate(codigo) {
     }
 }
 
+// Descuento del carrito: suma de los montos FIJOS por unidad de cada producto
+// (nunca más que el precio). Solo es para mostrarlo; el servidor lo recalcula.
+function getCartDiscount() {
+    return cart.reduce((sum, item) => {
+        const p = products.find(x => x.id === item.id);
+        const d = p ? Math.min(Number(p.affiliateDiscount || 0), Number(p.price)) : 0;
+        return sum + d * item.quantity;
+    }, 0);
+}
+
 // --- CONFIGURACIÓN DE EVENTOS GLOBALES ---
 function setupGlobalEvents() {
+    ['prod-price', 'prod-cost', 'prod-discount', 'prod-commission'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('input', updateMarginPreview);
+    });
     document.getElementById('nav-store-btn').addEventListener('click', () => switchView('store'));
     document.getElementById('back-to-store-btn').addEventListener('click', () => switchView('store'));
 
@@ -610,7 +625,7 @@ function toggleCart() {
     }
 }
 
-// Aplicar Afiliado (consulta pública: solo código, nombre y % de descuento)
+// Aplicar Afiliado (consulta pública: solo código y nombre)
 async function applyAffiliateFromInput() {
     const code = document.getElementById('affiliate-input').value.toUpperCase().trim();
     const feedback = document.getElementById('affiliate-feedback');
@@ -629,7 +644,7 @@ async function applyAffiliateFromInput() {
     if (found) {
         activeAffiliate = found;
         setStorage('active_affiliate', activeAffiliate);
-        feedback.textContent = `¡Descuento aplicado con éxito! (${activeAffiliate.descuento}% OFF)`;
+        feedback.textContent = '¡Código aplicado con éxito!';
         feedback.className = "mt-2 text-xs font-medium text-emerald-400";
         feedback.classList.remove('hidden');
         updateCartUI();
@@ -656,16 +671,16 @@ function updateCartUI() {
     const cartCountBadge = document.getElementById('cart-count');
 
     if (activeAffiliate) {
-        discountAmount = (subtotal * activeAffiliate.descuento) / 100;
+        discountAmount = getCartDiscount();
         discountRow.classList.remove('hidden');
-        discountLabel.textContent = `Descuento (${activeAffiliate.codigo} - ${activeAffiliate.descuento}%)`;
+        discountLabel.textContent = `Descuento (${activeAffiliate.codigo})`;
         cartDiscountEl.textContent = `-$${discountAmount.toFixed(2)}`;
 
         const input = document.getElementById('affiliate-input');
         if (input && input.value !== activeAffiliate.codigo) {
             input.value = activeAffiliate.codigo;
         }
-        feedback.textContent = `¡Descuento aplicado con éxito! (${activeAffiliate.descuento}% OFF)`;
+        feedback.textContent = discountAmount > 0 ? `¡Código aplicado! Ahorras $${discountAmount.toFixed(2)}` : '¡Código aplicado! (los productos de tu carrito no tienen descuento)';
         feedback.className = "mt-2 text-xs font-medium text-emerald-400";
         feedback.classList.remove('hidden');
     } else {
@@ -749,14 +764,14 @@ async function sendWhatsAppOrder(e) {
     let affiliateInfoText = "";
 
     if (activeAffiliate) {
-        discountAmount = (subtotal * activeAffiliate.descuento) / 100;
+        discountAmount = getCartDiscount();
         affiliateInfoText = `🏷️ *Afiliado / Referido:* ${activeAffiliate.nombre}\n` +
-                            `🔑 *Código:* ${activeAffiliate.codigo} (${activeAffiliate.descuento}% OFF)\n` +
+                            `🔑 *Código:* ${activeAffiliate.codigo}\n` +
                             `📉 *Descuento Aplicado:* -$${discountAmount.toFixed(2)}\n`;
 
         // El registro real de la venta y su comisión ocurre en el servidor
         // (record_sale), que vuelve a calcular todo con los precios y el %
-        // guardados en la base de datos: el navegador no puede inflar esto.
+        // guardados en la base de datos (montos fijos por producto): el navegador no puede inflar esto.
         const { error } = await supabase.rpc('record_sale', {
             p_codigo: activeAffiliate.codigo,
             p_cliente: name || 'Cliente General',
@@ -852,22 +867,26 @@ async function renderAdminDashboard() {
     document.getElementById('stat-total-sales').textContent = totalSalesCount;
     document.getElementById('stat-total-revenue').textContent = `$${totalRevenue.toFixed(2)}`;
     document.getElementById('stat-total-commissions').textContent = `$${totalCommissions.toFixed(2)}`;
+    const totalProfit = salesHistory.reduce((acc, s) => acc + Number(s.ganancia || 0), 0);
+    const profitEl = document.getElementById('stat-total-profit');
+    if (profitEl) profitEl.textContent = `$${totalProfit.toFixed(2)}`;
 
     const statsByCode = {};
     salesHistory.forEach(s => {
         if (!statsByCode[s.codigo]) {
-            statsByCode[s.codigo] = { nombre: s.nombre, count: 0, revenue: 0, commission: 0 };
+            statsByCode[s.codigo] = { nombre: s.nombre, count: 0, revenue: 0, commission: 0, profit: 0 };
         }
         statsByCode[s.codigo].count += 1;
         statsByCode[s.codigo].revenue += Number(s.monto_venta);
         statsByCode[s.codigo].commission += Number(s.comision_ganada);
+        statsByCode[s.codigo].profit += Number(s.ganancia || 0);
     });
 
     const tableBody = document.getElementById('sales-report-table');
     const keys = Object.keys(statsByCode);
 
     if (keys.length === 0) {
-        tableBody.innerHTML = `<tr><td colspan="5" class="px-6 py-10 text-center text-slate-500">No hay ventas registradas con códigos de afiliados aún.</td></tr>`;
+        tableBody.innerHTML = `<tr><td colspan="6" class="px-6 py-10 text-center text-slate-500">No hay ventas registradas con códigos de afiliados aún.</td></tr>`;
         return;
     }
 
@@ -880,6 +899,7 @@ async function renderAdminDashboard() {
                 <td class="px-6 py-4 text-slate-400 text-center">${item.count}</td>
                 <td class="px-6 py-4 text-white font-bold">$${item.revenue.toFixed(2)}</td>
                 <td class="px-6 py-4 text-indigo-400 font-extrabold">$${item.commission.toFixed(2)}</td>
+                <td class="px-6 py-4 text-emerald-400 font-extrabold">$${item.profit.toFixed(2)}</td>
             </tr>
         `;
     }).join('');
@@ -892,7 +912,7 @@ async function renderAdminDashboard() {
 // simplemente devuelve 0 filas (no un error), así que esta función es segura
 // de llamar siempre, pero solo se usa aquí, dentro del panel admin.
 async function loadProductSuppliers() {
-    const { data, error } = await supabase.from('product_suppliers').select('product_id, nombre, telefono');
+    const { data, error } = await supabase.from('product_suppliers').select('product_id, nombre, telefono, costo, comision');
     if (error) {
         console.error('Error cargando proveedores:', error.message);
         productSuppliers = {};
@@ -900,7 +920,7 @@ async function loadProductSuppliers() {
     }
     productSuppliers = {};
     (data || []).forEach(row => {
-        productSuppliers[row.product_id] = { nombre: row.nombre || '', telefono: row.telefono || '' };
+        productSuppliers[row.product_id] = { nombre: row.nombre || '', telefono: row.telefono || '', costo: row.costo, comision: Number(row.comision || 0) };
     });
 }
 
@@ -909,7 +929,7 @@ async function renderAdminProducts() {
 
     const tbody = document.getElementById('admin-products-table');
     if (products.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="6" class="px-6 py-10 text-center text-slate-500">No hay productos registrados.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="7" class="px-6 py-10 text-center text-slate-500">No hay productos registrados.</td></tr>`;
         return;
     }
 
@@ -922,6 +942,14 @@ async function renderAdminProducts() {
                </div>`
             : `<span class="text-slate-600 text-xs italic">Sin asignar</span>`;
 
+        // Ganancia limpia por unidad: sin afiliado y con afiliado (descuento + comisión)
+        let profitCell = '<span class="text-amber-400 text-xs italic">Falta costo</span>';
+        if (supplier.costo !== null && supplier.costo !== undefined) {
+            const base = p.price - Number(supplier.costo);
+            const conAf = base - Number(p.affiliateDiscount || 0) - Number(supplier.comision || 0);
+            profitCell = `<div class="text-xs"><p class="font-bold ${base > 0 ? 'text-emerald-400' : 'text-rose-400'}">$${base.toFixed(2)}</p><p class="text-slate-500">con código: $${conAf.toFixed(2)}</p></div>`;
+        }
+
         return `
         <tr class="hover:bg-slate-800/50 transition-colors">
             <td class="px-6 py-4">
@@ -930,6 +958,7 @@ async function renderAdminProducts() {
             <td class="px-6 py-4 font-bold text-white">${escapeHtml(p.name)}</td>
             <td class="px-6 py-4"><span class="bg-indigo-500/10 text-indigo-400 font-semibold px-2.5 py-1 rounded-lg text-xs capitalize">${escapeHtml(p.category)}</span></td>
             <td class="px-6 py-4 font-extrabold text-white">$${p.price.toFixed(2)}</td>
+            <td class="px-6 py-4">${profitCell}</td>
             <td class="px-6 py-4">${supplierCell}</td>
             <td class="px-6 py-4 text-right space-x-2">
                 <button onclick="openProductModal(${p.id})" class="text-indigo-400 hover:text-indigo-300 font-semibold text-xs bg-indigo-500/10 hover:bg-indigo-500/20 px-3 py-1.5 rounded-lg transition-colors">Editar</button>
@@ -967,11 +996,17 @@ function openProductModal(id = null) {
         const supplier = productSuppliers[id] || { nombre: '', telefono: '' };
         document.getElementById('prod-supplier-name').value = supplier.nombre;
         document.getElementById('prod-supplier-phone').value = supplier.telefono;
+        document.getElementById('prod-cost').value = (supplier.costo !== null && supplier.costo !== undefined) ? supplier.costo : '';
+        document.getElementById('prod-discount').value = (p && p.affiliateDiscount) ? p.affiliateDiscount : 0;
+        document.getElementById('prod-commission').value = supplier.comision || 0;
     } else {
         title.textContent = "Nuevo Producto";
         const form = document.getElementById('product-form');
         if (form) form.reset();
+        document.getElementById('prod-discount').value = 0;
+        document.getElementById('prod-commission').value = 0;
     }
+    updateMarginPreview();
 
     if (modal) {
         modal.classList.remove('hidden');
@@ -982,6 +1017,22 @@ function openProductModal(id = null) {
 function closeProductModal() {
     document.getElementById('product-modal').classList.add('hidden');
     document.getElementById('product-modal').classList.remove('flex');
+}
+
+// Vista previa en vivo de tu ganancia mientras llenas el formulario
+function updateMarginPreview() {
+    const el = document.getElementById('prod-margin-preview');
+    if (!el) return;
+    const price = parseFloat(document.getElementById('prod-price').value);
+    const cost = parseFloat(document.getElementById('prod-cost').value);
+    const disc = parseFloat(document.getElementById('prod-discount').value) || 0;
+    const com = parseFloat(document.getElementById('prod-commission').value) || 0;
+    if (isNaN(price) || isNaN(cost)) { el.innerHTML = ''; return; }
+    const base = price - cost;
+    const conAf = base - disc - com;
+    const cls = conAf < 0 ? 'text-rose-400' : (conAf === 0 ? 'text-amber-400' : 'text-emerald-400');
+    el.innerHTML = `Ganancia sin código: <span class="text-emerald-400">$${base.toFixed(2)}</span> · Cliente paga con código: $${Math.max(0, price - disc).toFixed(2)} · Ganancia con código: <span class="${cls}">$${conAf.toFixed(2)}</span>` +
+        (conAf < 0 ? '<br><span class="text-rose-400">⚠ Perderías dinero: baja el descuento o la comisión. No se podrá guardar.</span>' : '');
 }
 
 async function handleSaveProduct(e) {
@@ -995,36 +1046,23 @@ async function handleSaveProduct(e) {
     const description = document.getElementById('prod-desc').value.trim();
     const supplierName = document.getElementById('prod-supplier-name').value.trim() || null;
     const supplierPhone = document.getElementById('prod-supplier-phone').value.trim() || null;
+    const costo = parseFloat(document.getElementById('prod-cost').value);
+    const descuento = parseFloat(document.getElementById('prod-discount').value) || 0;
+    const comision = parseFloat(document.getElementById('prod-commission').value) || 0;
 
-    const payload = { name, category, price, original_price: originalPrice, badge, image, description };
-
-    let productId = editingProductId;
-    let error;
-
-    if (editingProductId) {
-        ({ error } = await supabase.from('products').update(payload).eq('id', editingProductId));
-    } else {
-        // Necesitamos el id del producto recién creado para poder guardar su proveedor.
-        const inserted = await supabase.from('products').insert(payload).select('id').single();
-        error = inserted.error;
-        productId = inserted.data ? inserted.data.id : null;
-    }
+    // Todo se guarda en una sola llamada al servidor, que además valida el
+    // candado anti-pérdida: (precio - descuento - comisión) no puede quedar por debajo del costo.
+    const { error } = await supabase.rpc('admin_save_product', {
+        p_id: editingProductId,
+        p_name: name, p_category: category, p_price: price, p_original_price: originalPrice,
+        p_image: image, p_description: description, p_badge: badge,
+        p_descuento: descuento, p_costo: costo, p_comision: comision,
+        p_prov_nombre: supplierName, p_prov_telefono: supplierPhone
+    });
 
     if (error) {
         alert('No se pudo guardar el producto: ' + error.message);
         return;
-    }
-
-    // El proveedor vive en su propia tabla (product_suppliers), invisible para
-    // el público. Si el admin no puso nombre ni teléfono, igual guardamos la
-    // fila (en null) para no dejar basura de una versión anterior del producto.
-    if (productId) {
-        const { error: supplierError } = await supabase
-            .from('product_suppliers')
-            .upsert({ product_id: productId, nombre: supplierName, telefono: supplierPhone });
-        if (supplierError) {
-            console.error('No se pudo guardar el proveedor:', supplierError.message);
-        }
     }
 
     await loadCatalog();
@@ -1109,18 +1147,18 @@ async function renderAdminAffiliates() {
     const tbody = document.getElementById('admin-affiliates-table');
     const { data, error } = await supabase
         .from('affiliates')
-        .select('id,codigo,nombre,descuento,comision')
+        .select('id,codigo,nombre')
         .order('codigo');
 
     if (error) {
-        tbody.innerHTML = `<tr><td colspan="5" class="px-6 py-10 text-center text-rose-400">Error cargando afiliados: ${escapeHtml(error.message)}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="3" class="px-6 py-10 text-center text-rose-400">Error cargando afiliados: ${escapeHtml(error.message)}</td></tr>`;
         return;
     }
 
     lastAdminAffiliates = data || [];
 
     if (lastAdminAffiliates.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="5" class="px-6 py-10 text-center text-slate-500">No hay afiliados registrados.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="3" class="px-6 py-10 text-center text-slate-500">No hay afiliados registrados.</td></tr>`;
         return;
     }
 
@@ -1128,8 +1166,6 @@ async function renderAdminAffiliates() {
         <tr class="hover:bg-slate-800/50 transition-colors">
             <td class="px-6 py-4 font-mono font-extrabold text-white">${escapeHtml(a.codigo)}</td>
             <td class="px-6 py-4 font-semibold text-slate-200">${escapeHtml(a.nombre)}</td>
-            <td class="px-6 py-4"><span class="bg-emerald-500/10 text-emerald-400 font-bold px-2.5 py-1 rounded-lg text-xs">${a.descuento}% OFF</span></td>
-            <td class="px-6 py-4"><span class="bg-indigo-500/10 text-indigo-400 font-bold px-2.5 py-1 rounded-lg text-xs">${a.comision}%</span></td>
             <td class="px-6 py-4 text-right space-x-2">
                 <button onclick="openAffiliateModal(${a.id})" class="text-indigo-400 hover:text-indigo-300 font-semibold text-xs bg-indigo-500/10 hover:bg-indigo-500/20 px-3 py-1.5 rounded-lg transition-colors">Editar</button>
                 <button onclick="deleteAffiliate(${a.id})" class="text-rose-400 hover:text-rose-300 font-semibold text-xs bg-rose-500/10 hover:bg-rose-500/20 px-3 py-1.5 rounded-lg transition-colors">Eliminar</button>
@@ -1153,8 +1189,6 @@ function openAffiliateModal(id = null) {
         if (a) {
             document.getElementById('aff-code').value = a.codigo;
             document.getElementById('aff-name').value = a.nombre;
-            document.getElementById('aff-discount').value = a.descuento;
-            document.getElementById('aff-commission').value = a.comision;
         }
         pinInput.value = '';
         pinInput.required = false;
@@ -1182,8 +1216,6 @@ async function handleSaveAffiliate(e) {
     e.preventDefault();
     const codigo = document.getElementById('aff-code').value.toUpperCase().trim();
     const nombre = document.getElementById('aff-name').value.trim();
-    const descuento = parseFloat(document.getElementById('aff-discount').value);
-    const comision = parseFloat(document.getElementById('aff-commission').value);
     const pin = document.getElementById('aff-pin').value.trim();
 
     // El hash del PIN se genera DENTRO de la base de datos (admin_upsert_affiliate),
@@ -1192,8 +1224,6 @@ async function handleSaveAffiliate(e) {
         p_id: editingAffiliateId,
         p_codigo: codigo,
         p_nombre: nombre,
-        p_descuento: descuento,
-        p_comision: comision,
         p_pin: pin || null
     });
 
@@ -1245,7 +1275,6 @@ function renderPortalDashboard(aff) {
     document.getElementById('portal-avatar-initials').textContent = initials;
     document.getElementById('portal-affiliate-name').textContent = aff.nombre;
     document.getElementById('portal-affiliate-code').textContent = aff.codigo;
-    document.getElementById('portal-affiliate-discount').textContent = `${aff.descuento}%`;
 
     // salesHistory ya viene filtrado por el servidor para este afiliado
     // (get_affiliate_sales solo devuelve filas que coinciden con su código
