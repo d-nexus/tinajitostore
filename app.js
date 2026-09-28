@@ -439,13 +439,19 @@ async function switchView(view) {
 /* ==========================================
    MÓDULO: TIENDA PÚBLICA
    ========================================== */
-// Determinar filtro de categoría inicial según la página actual
+// Determinar filtro de categoría inicial:
+//  1) Si la URL trae ?cat=nombre (categorías nuevas creadas desde el admin) se usa ese.
+//  2) Si no, y la página es una de las 4 con archivo propio, se usa su nombre.
+//  3) Si no, "all" (index.html).
 const pathName = window.location.pathname.split('/').pop().toLowerCase();
+const KNOWN_CATEGORY_PAGES = ['accesorios', 'audio', 'moda', 'tecnologia'];
+const urlCatParam = (new URLSearchParams(window.location.search).get('cat') || '').trim().toLowerCase();
 let initialCategoryFilter = 'all';
-if (pathName.includes('accesorios')) initialCategoryFilter = 'accesorios';
-else if (pathName.includes('audio')) initialCategoryFilter = 'audio';
-else if (pathName.includes('moda')) initialCategoryFilter = 'moda';
-else if (pathName.includes('tecnologia')) initialCategoryFilter = 'tecnologia';
+if (urlCatParam) initialCategoryFilter = urlCatParam;
+else {
+    const known = KNOWN_CATEGORY_PAGES.find(c => pathName === c + '.html');
+    if (known) initialCategoryFilter = known;
+}
 
 let currentCategoryFilter = initialCategoryFilter;
 
@@ -464,22 +470,18 @@ function renderCategoryFilters() {
 
     const currentPath = window.location.pathname.split('/').pop() || 'index.html';
 
-    const isTodosActive = currentPath === '' || currentPath === 'index.html';
+    const isTodosActive = currentCategoryFilter === 'all';
     let html = `<a href="index.html" class="category-filter-btn category-btn px-5 py-2 rounded-full text-xs sm:text-sm font-medium transition-all shrink-0 ${isTodosActive ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-md shadow-emerald-600/30 border border-emerald-500' : 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20'}">Todos</a>`;
-
-    const categoryFiles = {
-        'accesorios': 'accesorios.html',
-        'audio': 'audio.html',
-        'moda': 'moda.html',
-        'tecnologia': 'tecnologia.html'
-    };
 
     html += categories.map(cat => {
         const lowerCat = cat.toLowerCase();
-        const fileName = categoryFiles[lowerCat] || `${lowerCat}.html`;
-        const isActive = currentPath === fileName;
+        // Las 4 categorías originales tienen su propia página (mejor para SEO).
+        // Cualquier categoría nueva usa index.html?cat=nombre, sin crear archivos.
+        const isKnown = KNOWN_CATEGORY_PAGES.includes(lowerCat);
+        const href = isKnown ? `${lowerCat}.html` : `index.html?cat=${encodeURIComponent(lowerCat)}`;
+        const isActive = currentCategoryFilter === lowerCat;
         return `
-            <a href="${fileName}" class="category-filter-btn category-btn px-5 py-2 rounded-full text-xs sm:text-sm font-medium transition-all shrink-0 capitalize ${isActive ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-md shadow-emerald-600/30 border border-emerald-500' : 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20'}">
+            <a href="${href}" class="category-filter-btn category-btn px-5 py-2 rounded-full text-xs sm:text-sm font-medium transition-all shrink-0 capitalize ${isActive ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-md shadow-emerald-600/30 border border-emerald-500' : 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20'}">
                 ${escapeHtml(cat)}
             </a>
         `;
@@ -498,7 +500,7 @@ function applySearchAndFilter() {
     const query = (document.getElementById('search-input')?.value || document.getElementById('search-input-mobile')?.value || '').toLowerCase().trim();
 
     const filtered = products.filter(p => {
-        const matchesCategory = currentCategoryFilter === 'all' || p.category === currentCategoryFilter;
+        const matchesCategory = currentCategoryFilter === 'all' || (p.category || '').toLowerCase() === currentCategoryFilter;
         const matchesQuery = (p.name || '').toLowerCase().includes(query) || (p.description || '').toLowerCase().includes(query);
         return matchesCategory && matchesQuery;
     });
