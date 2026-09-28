@@ -41,6 +41,7 @@ function setStorage(key, value) {
 
 let products = [];
 let categories = [];
+let subcategories = []; // [{id, category, name}]
 let cart = getStorage('cart', []);
 let activeAffiliate = getStorage('active_affiliate', null); // {codigo, nombre, descuento}
 let salesHistory = [];
@@ -106,7 +107,7 @@ async function initializeAppAsync() {
 // distintas, con recarga completa) no hacer esperar al visitante la misma
 // consulta a Supabase una y otra vez. Vive solo en esta pestaña (sessionStorage)
 // y se refresca solo, así que nunca queda "pegada" para siempre.
-const CATALOG_CACHE_KEY = 'nexus_catalog_cache_v2';
+const CATALOG_CACHE_KEY = 'nexus_catalog_cache_v3';
 const CATALOG_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutos
 
 function readCatalogCache() {
@@ -123,9 +124,9 @@ function readCatalogCache() {
     }
 }
 
-function writeCatalogCache(cats, prods) {
+function writeCatalogCache(cats, prods, subs) {
     try {
-        sessionStorage.setItem(CATALOG_CACHE_KEY, JSON.stringify({ categories: cats, products: prods, ts: Date.now() }));
+        sessionStorage.setItem(CATALOG_CACHE_KEY, JSON.stringify({ categories: cats, products: prods, subcategories: subs || [], ts: Date.now() }));
     } catch (err) {
         // No es crítico: si falla, simplemente no hay caché y se sigue pidiendo a Supabase.
     }
@@ -145,6 +146,7 @@ async function loadCatalog() {
     if (cached && (Date.now() - cached.ts) < CATALOG_CACHE_TTL_MS) {
         categories = cached.categories;
         products = cached.products;
+        subcategories = Array.isArray(cached.subcategories) ? cached.subcategories : [];
         initStoreView();
         paintedFromCache = true;
     }
@@ -158,16 +160,19 @@ async function loadCatalog() {
 
         const fetchPromise = Promise.all([
             supabase.from('categories').select('name').order('name'),
-            supabase.from('products').select('*').order('id')
+            supabase.from('products').select('*').order('id'),
+            supabase.from('subcategories').select('id, category, name').order('name')
         ]);
 
-        const [{ data: cats, error: catErr }, { data: prods, error: prodErr }] = await Promise.race([
+        const [{ data: cats, error: catErr }, { data: prods, error: prodErr }, { data: subs, error: subErr }] = await Promise.race([
             fetchPromise,
             timeoutPromise
         ]);
 
         if (catErr) console.error('Error cargando categorías:', catErr.message);
         if (prodErr) console.error('Error cargando productos:', prodErr.message);
+        // Si la tabla aún no existe (falta correr la migración v3) simplemente no hay subcategorías.
+        if (subErr) console.warn('Subcategorías no disponibles (¿falta la migración v3?):', subErr.message);
 
         categories = (cats || []).map(c => c.name);
         products = (prods || []).map(p => ({
@@ -179,10 +184,13 @@ async function loadCatalog() {
             image: p.image,
             description: p.description,
             badge: p.badge,
+            subcategory: p.subcategory || null,
             affiliateDiscount: Number(p.descuento_afiliado || 0) // pesos por unidad; es público (se ve como ahorro en el carrito)
         }));
 
-        writeCatalogCache(categories, products);
+        subcategories = subErr ? [] : (subs || []).map(s => ({ id: s.id, category: s.category, name: s.name }));
+
+        writeCatalogCache(categories, products, subcategories);
         initStoreView();
     } catch (err) {
         console.error('Error al cargar catálogo:', err);
@@ -285,6 +293,11 @@ function setupGlobalEvents() {
 
     document.getElementById('add-product-btn').addEventListener('click', () => openProductModal());
     document.getElementById('product-form').addEventListener('submit', handleSaveProduct);
+
+    const prodCatSelect = document.getElementById('prod-category');
+    if (prodCatSelect) prodCatSelect.addEventListener('change', () => refreshProductSubcategoryOptions(''));
+    const subcatForm = document.getElementById('subcategory-form');
+    if (subcatForm) subcatForm.addEventListener('submit', handleSaveSubcategory);
 
     document.getElementById('add-category-btn').addEventListener('click', openCategoryModal);
     document.getElementById('category-form').addEventListener('submit', handleSaveCategory);
@@ -469,6 +482,10 @@ else {
 }
 
 let currentCategoryFilter = initialCategoryFilter;
+// Subcategoría pedida por la URL (?sub=paneles-solares). Solo se aplica si de verdad
+// existe dentro de la categoría activa (ver getActiveSub), así un enlace viejo o mal
+// escrito nunca deja la página vacía.
+let requestedSubParam = (new URLSearchParams(window.location.search).get('sub') || '').trim().toLowerCase();
 
 function initStoreView() {
     renderCategoryFilters();
@@ -503,10 +520,53 @@ function renderCategoryFilters() {
     }).join('');
 
     container.innerHTML = html;
+    renderSubcategoryFilters();
+}
+
+// --- SUBCATEGORÍAS (segunda fila de filtros, solo aparece dentro de una categoría que las tenga) ---
+function subcategoriesOf(cat) {
+    const c = (cat || '').toLowerCase();
+    return subcategories.filter(s => (s.category || '').toLowerCase() === c).map(s => s.name);
+}
+
+function getActiveSub() {
+    if (currentCategoryFilter === 'all' || !requestedSubParam) return 'all';
+    return subcategoriesOf(currentCategoryFilter).some(n => n.toLowerCase() === requestedSubParam) ? requestedSubParam : 'all';
+}
+
+function renderSubcategoryFilters() {
+    const bar = document.getElementById('subcategory-bar');
+    const container = document.getElementById('subcategory-filters-container');
+    if (!bar || !container) return; // página con HTML sin actualizar: se omite sin romper nada
+
+    const subs = currentCategoryFilter === 'all' ? [] : subcategoriesOf(currentCategoryFilter);
+    if (subs.length === 0) {
+        bar.classList.add('hidden');
+        container.innerHTML = '';
+        return;
+    }
+
+    const cat = currentCategoryFilter;
+    const base = KNOWN_CATEGORY_PAGES.includes(cat) ? `${cat}.html` : `index.html?cat=${encodeURIComponent(cat)}`;
+    const sep = base.includes('?') ? '&' : '?';
+    const active = getActiveSub();
+    const on = 'bg-indigo-600 text-white border border-indigo-500 shadow-md shadow-indigo-600/20';
+    const off = 'bg-slate-900 text-slate-300 border border-slate-800 hover:bg-slate-800';
+
+    let html = `<a href="${escapeHtml(base)}" class="px-4 py-1.5 rounded-full text-xs font-medium transition-all shrink-0 ${active === 'all' ? on : off}">Todas</a>`;
+    html += subs.map(name => {
+        const low = name.toLowerCase();
+        const href = `${base}${sep}sub=${encodeURIComponent(low)}`;
+        return `<a href="${escapeHtml(href)}" class="px-4 py-1.5 rounded-full text-xs font-medium transition-all shrink-0 capitalize ${active === low ? on : off}">${escapeHtml(name)}</a>`;
+    }).join('');
+
+    container.innerHTML = html;
+    bar.classList.remove('hidden');
 }
 
 function filterByCategory(category) {
     currentCategoryFilter = category;
+    requestedSubParam = '';
     renderCategoryFilters();
     applySearchAndFilter();
 }
@@ -514,10 +574,12 @@ function filterByCategory(category) {
 function applySearchAndFilter() {
     const query = (document.getElementById('search-input')?.value || document.getElementById('search-input-mobile')?.value || '').toLowerCase().trim();
 
+    const activeSub = getActiveSub();
     const filtered = products.filter(p => {
         const matchesCategory = currentCategoryFilter === 'all' || (p.category || '').toLowerCase() === currentCategoryFilter;
+        const matchesSub = activeSub === 'all' || (p.subcategory || '').toLowerCase() === activeSub;
         const matchesQuery = (p.name || '').toLowerCase().includes(query) || (p.description || '').toLowerCase().includes(query);
-        return matchesCategory && matchesQuery;
+        return matchesCategory && matchesSub && matchesQuery;
     });
 
     renderProducts(filtered);
@@ -553,7 +615,7 @@ function renderProducts(productsToRender) {
             </div>
             <div class="p-5 flex-1 flex flex-col justify-between">
                 <div>
-                    <span class="text-[11px] font-semibold text-emerald-400 uppercase tracking-wider">${escapeHtml(product.category)}</span>
+                    <span class="text-[11px] font-semibold text-emerald-400 uppercase tracking-wider">${escapeHtml(product.category)}${product.subcategory ? ' › ' + escapeHtml(product.subcategory) : ''}</span>
                     <h3 class="font-bold text-white text-base mt-1 group-hover:text-emerald-400 transition-colors line-clamp-1">${escapeHtml(product.name)}</h3>
                     <p class="text-slate-400 text-xs mt-1.5 line-clamp-2 leading-relaxed">${escapeHtml(product.description)}</p>
                 </div>
@@ -956,7 +1018,7 @@ async function renderAdminProducts() {
                 <img src="${escapeHtml(p.image)}" loading="lazy" class="w-12 h-12 object-cover rounded-xl bg-slate-950 border border-slate-800" onerror="this.src='https://images.unsplash.com/photo-1584438784894-089d6a62b8fa?auto=format&fit=crop&w=600&q=80'">
             </td>
             <td class="px-6 py-4 font-bold text-white">${escapeHtml(p.name)}</td>
-            <td class="px-6 py-4"><span class="bg-indigo-500/10 text-indigo-400 font-semibold px-2.5 py-1 rounded-lg text-xs capitalize">${escapeHtml(p.category)}</span></td>
+            <td class="px-6 py-4"><span class="bg-indigo-500/10 text-indigo-400 font-semibold px-2.5 py-1 rounded-lg text-xs capitalize">${escapeHtml(p.category)}</span>${p.subcategory ? `<span class="block text-[11px] text-slate-500 mt-1 capitalize">${escapeHtml(p.subcategory)}</span>` : ''}</td>
             <td class="px-6 py-4 font-extrabold text-white">$${p.price.toFixed(2)}</td>
             <td class="px-6 py-4">${profitCell}</td>
             <td class="px-6 py-4">${supplierCell}</td>
@@ -1006,12 +1068,25 @@ function openProductModal(id = null) {
         document.getElementById('prod-discount').value = 0;
         document.getElementById('prod-commission').value = 0;
     }
+    const editingProduct = products.find(x => x.id === editingProductId);
+    refreshProductSubcategoryOptions(editingProduct ? editingProduct.subcategory : '');
     updateMarginPreview();
 
     if (modal) {
         modal.classList.remove('hidden');
         modal.classList.add('flex');
     }
+}
+
+// Llena el selector de subcategoría con las de la categoría elegida en el formulario.
+function refreshProductSubcategoryOptions(selected) {
+    const sel = document.getElementById('prod-subcategory');
+    if (!sel) return;
+    const cat = document.getElementById('prod-category').value;
+    const subs = subcategories.filter(s => s.category === cat);
+    sel.innerHTML = '<option value="">Sin subcategoría</option>' +
+        subs.map(s => `<option value="${escapeHtml(s.name)}">${escapeHtml(s.name.toUpperCase())}</option>`).join('');
+    sel.value = subs.some(s => s.name === selected) ? selected : '';
 }
 
 function closeProductModal() {
@@ -1049,6 +1124,7 @@ async function handleSaveProduct(e) {
     const costo = parseFloat(document.getElementById('prod-cost').value);
     const descuento = parseFloat(document.getElementById('prod-discount').value) || 0;
     const comision = parseFloat(document.getElementById('prod-commission').value) || 0;
+    const subcategory = (document.getElementById('prod-subcategory') || {}).value || '';
 
     // Todo se guarda en una sola llamada al servidor, que además valida el
     // candado anti-pérdida: (precio - descuento - comisión) no puede quedar por debajo del costo.
@@ -1065,10 +1141,32 @@ async function handleSaveProduct(e) {
         return;
     }
 
+    await applyProductSubcategory(name, category, subcategory);
+
     await loadCatalog();
     closeProductModal();
     renderAdminProducts();
     showToast("Producto guardado exitosamente");
+}
+
+// La subcategoría se asigna con su propia función del servidor (no toca el guardado de costos/márgenes).
+async function applyProductSubcategory(name, category, subcategory) {
+    if (!document.getElementById('prod-subcategory')) return; // HTML sin actualizar
+    const previous = products.find(x => x.id === editingProductId);
+    // Solo se llama si hay algo que asignar o algo que quitar; así todo sigue funcionando
+    // igual aunque la migración de subcategorías aún no se haya corrido.
+    if (!subcategory && !(previous && previous.subcategory)) return;
+
+    let productId = editingProductId;
+    if (!productId) {
+        // Producto nuevo: el más reciente con ese nombre y categoría es el que se acaba de crear.
+        const { data } = await supabase.from('products').select('id').eq('name', name).eq('category', category).order('id', { ascending: false }).limit(1);
+        productId = data && data[0] ? data[0].id : null;
+    }
+    if (!productId) return;
+
+    const { error } = await supabase.rpc('admin_set_product_subcategory', { p_product_id: productId, p_subcategory: subcategory || null });
+    if (error) alert('El producto se guardó, pero no se pudo asignar la subcategoría: ' + error.message);
 }
 
 async function deleteProduct(id) {
@@ -1086,15 +1184,100 @@ async function deleteProduct(id) {
 // --- 3. GESTIÓN DE CATEGORÍAS ---
 function renderAdminCategories() {
     const list = document.getElementById('admin-categories-list');
-    list.innerHTML = categories.map(cat => `
-        <div class="flex items-center justify-between bg-slate-950 p-4 rounded-2xl border border-slate-800">
-            <span class="font-bold text-white capitalize">${escapeHtml(cat)}</span>
-            <button data-category="${escapeHtml(cat)}" class="delete-category-btn text-rose-400 hover:text-rose-300 text-xs font-bold bg-rose-500/10 hover:bg-rose-500/20 px-3 py-1.5 rounded-lg transition-colors">Eliminar</button>
-        </div>
-    `).join('');
+    list.innerHTML = categories.map(cat => {
+        const subs = subcategories.filter(s => s.category === cat);
+        const chips = subs.length ? `
+            <div class="flex flex-wrap gap-2 mt-3">
+                ${subs.map(s => `
+                    <span class="inline-flex items-center gap-1 bg-indigo-500/10 text-indigo-300 text-xs font-semibold pl-3 pr-1 py-1 rounded-full capitalize">
+                        ${escapeHtml(s.name)}
+                        <button data-sub-id="${Number(s.id)}" data-sub-name="${escapeHtml(s.name)}" class="delete-subcategory-btn w-5 h-5 rounded-full text-indigo-300 hover:bg-rose-500/20 hover:text-rose-300 leading-none" aria-label="Eliminar subcategoría ${escapeHtml(s.name)}">&times;</button>
+                    </span>`).join('')}
+            </div>` : '';
+        return `
+        <div class="bg-slate-950 p-4 rounded-2xl border border-slate-800">
+            <div class="flex items-center justify-between gap-3">
+                <span class="font-bold text-white capitalize">${escapeHtml(cat)}</span>
+                <div class="flex items-center gap-2">
+                    <button data-category="${escapeHtml(cat)}" class="add-subcategory-btn text-indigo-300 hover:text-indigo-200 text-xs font-bold bg-indigo-500/10 hover:bg-indigo-500/20 px-3 py-1.5 rounded-lg transition-colors">+ Subcategoría</button>
+                    <button data-category="${escapeHtml(cat)}" class="delete-category-btn text-rose-400 hover:text-rose-300 text-xs font-bold bg-rose-500/10 hover:bg-rose-500/20 px-3 py-1.5 rounded-lg transition-colors">Eliminar</button>
+                </div>
+            </div>
+            ${chips}
+        </div>`;
+    }).join('');
     list.querySelectorAll('.delete-category-btn').forEach(btn => {
         btn.addEventListener('click', () => deleteCategory(btn.dataset.category));
     });
+    list.querySelectorAll('.add-subcategory-btn').forEach(btn => {
+        btn.addEventListener('click', () => openSubcategoryModal(btn.dataset.category));
+    });
+    list.querySelectorAll('.delete-subcategory-btn').forEach(btn => {
+        btn.addEventListener('click', () => deleteSubcategory(Number(btn.dataset.subId), btn.dataset.subName));
+    });
+}
+
+// --- SUBCATEGORÍAS (CRUD) ---
+let pendingSubcategoryParent = null;
+
+function isMissingSubcategoriesTable(error) {
+    return error && (error.code === '42P01' || error.code === 'PGRST205' || /subcategories/i.test(error.message || ''));
+}
+
+function openSubcategoryModal(parentCategory) {
+    const modal = document.getElementById('subcat-modal');
+    if (!modal) {
+        alert('Falta actualizar el HTML de esta página para poder crear subcategorías (sube la versión nueva de los archivos .html).');
+        return;
+    }
+    pendingSubcategoryParent = parentCategory;
+    document.getElementById('subcat-parent-label').textContent = parentCategory;
+    document.getElementById('subcategory-form').reset();
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+}
+
+function closeSubcategoryModal() {
+    const modal = document.getElementById('subcat-modal');
+    if (!modal) return;
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+}
+
+async function handleSaveSubcategory(e) {
+    e.preventDefault();
+    const name = document.getElementById('subcat-name').value.toLowerCase().trim();
+    if (!name || !pendingSubcategoryParent) {
+        alert('El nombre no puede estar vacío.');
+        return;
+    }
+
+    const { error } = await supabase.from('subcategories').insert({ category: pendingSubcategoryParent, name });
+    if (error) {
+        if (error.code === '23505') alert('Esa subcategoría ya existe dentro de esta categoría.');
+        else if (isMissingSubcategoriesTable(error)) alert('Falta correr la migración de subcategorías en Supabase (MIGRACION_v3_subcategorias.sql).');
+        else alert('No se pudo guardar: ' + error.message);
+        return;
+    }
+
+    await loadCatalog();
+    closeSubcategoryModal();
+    renderAdminCategories();
+    showToast('Subcategoría añadida');
+}
+
+async function deleteSubcategory(id, name) {
+    if (!confirm(`¿Eliminar la subcategoría "${name}"?`)) return;
+    const { error } = await supabase.from('subcategories').delete().eq('id', id);
+    if (error) {
+        alert(error.code === '23503'
+            ? 'No se puede eliminar: todavía hay productos en esta subcategoría. Muévelos o quítales la subcategoría primero.'
+            : 'No se pudo eliminar: ' + error.message);
+        return;
+    }
+    await loadCatalog();
+    renderAdminCategories();
+    showToast('Subcategoría eliminada');
 }
 
 function openCategoryModal() {
