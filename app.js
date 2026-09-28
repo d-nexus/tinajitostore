@@ -107,7 +107,7 @@ async function initializeAppAsync() {
 // distintas, con recarga completa) no hacer esperar al visitante la misma
 // consulta a Supabase una y otra vez. Vive solo en esta pestaña (sessionStorage)
 // y se refresca solo, así que nunca queda "pegada" para siempre.
-const CATALOG_CACHE_KEY = 'nexus_catalog_cache_v3';
+const CATALOG_CACHE_KEY = 'nexus_catalog_cache_v4';
 const CATALOG_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutos
 
 function readCatalogCache() {
@@ -147,6 +147,7 @@ async function loadCatalog() {
         categories = cached.categories;
         products = cached.products;
         subcategories = Array.isArray(cached.subcategories) ? cached.subcategories : [];
+        reconcileCartWithStock();
         initStoreView();
         paintedFromCache = true;
     }
@@ -185,12 +186,14 @@ async function loadCatalog() {
             description: p.description,
             badge: p.badge,
             subcategory: p.subcategory || null,
+            stock: (p.stock === null || p.stock === undefined) ? null : Number(p.stock), // null = sin control; 0 = agotado
             affiliateDiscount: Number(p.descuento_afiliado || 0) // pesos por unidad; es público (se ve como ahorro en el carrito)
         }));
 
         subcategories = subErr ? [] : (subs || []).map(s => ({ id: s.id, category: s.category, name: s.name }));
 
         writeCatalogCache(categories, products, subcategories);
+        reconcileCartWithStock();
         initStoreView();
     } catch (err) {
         console.error('Error al cargar catálogo:', err);
@@ -597,6 +600,8 @@ function applySearchAndFilter() {
         return matchesCategory && matchesSub && matchesQuery;
     });
 
+    // Los agotados se muestran (marcados) pero al final de la lista.
+    filtered.sort((a, b) => Number(isSoldOut(a)) - Number(isSoldOut(b)));
     renderProducts(filtered);
 }
 
@@ -617,11 +622,15 @@ function renderProducts(productsToRender) {
         return;
     }
 
-    grid.innerHTML = productsToRender.map(product => `
+    grid.innerHTML = productsToRender.map(product => {
+        const soldOut = isSoldOut(product);
+        const lowStock = !soldOut && product.stock !== null && product.stock !== undefined && product.stock <= LOW_STOCK_THRESHOLD;
+        return `
         <div class="bg-slate-900 rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 overflow-hidden flex flex-col group border border-slate-800 hover:border-slate-700">
             <div class="relative overflow-hidden bg-slate-950 aspect-square">
-                <img src="${escapeHtml(product.image)}" alt="${escapeHtml(product.name)}" loading="lazy" class="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-500" onerror="this.src='https://images.unsplash.com/photo-1584438784894-089d6a62b8fa?auto=format&fit=crop&w=600&q=80'">
-                ${product.badge ? `<span class="absolute top-3 left-3 bg-emerald-600 text-white text-xs font-semibold px-3 py-1 rounded-full shadow-md shadow-emerald-600/30">${escapeHtml(product.badge)}</span>` : ''}
+                <img src="${escapeHtml(product.image)}" alt="${escapeHtml(product.name)}" loading="lazy" class="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-500 ${soldOut ? 'grayscale opacity-60' : ''}" onerror="this.src='https://images.unsplash.com/photo-1584438784894-089d6a62b8fa?auto=format&fit=crop&w=600&q=80'">
+                ${soldOut ? `<span class="absolute top-3 left-3 bg-rose-600 text-white text-xs font-bold px-3 py-1 rounded-full shadow-md shadow-rose-600/30">Agotado</span>` : (product.badge ? `<span class="absolute top-3 left-3 bg-emerald-600 text-white text-xs font-semibold px-3 py-1 rounded-full shadow-md shadow-emerald-600/30">${escapeHtml(product.badge)}</span>` : '')}
+                ${lowStock ? `<span class="absolute bottom-3 left-3 bg-amber-500 text-slate-950 text-[11px] font-bold px-2.5 py-1 rounded-full">¡Últimas ${product.stock}!</span>` : ''}
                 <div class="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                     <button onclick="quickView(${product.id})" class="bg-slate-900 text-slate-100 px-4 py-2 rounded-xl font-medium text-sm shadow-xl transform translate-y-3 group-hover:translate-y-0 transition-all duration-300 hover:bg-emerald-600 hover:text-white border border-slate-700">
                         Ver Detalles
@@ -639,15 +648,41 @@ function renderProducts(productsToRender) {
                         <span class="text-xl font-extrabold text-white">$${product.price.toFixed(2)}</span>
                         ${product.originalPrice ? `<span class="text-xs text-slate-500 line-through ml-1.5">$${product.originalPrice.toFixed(2)}</span>` : ''}
                     </div>
-                    <button onclick="addToCart(${product.id})" class="bg-emerald-600 hover:bg-emerald-500 text-white p-2.5 rounded-xl transition-all duration-300 shadow-md hover:shadow-lg flex items-center justify-center group/btn">
+                    ${soldOut ? `<button disabled aria-label="Producto agotado" class="bg-slate-800 text-slate-500 text-xs font-bold px-3 py-2.5 rounded-xl cursor-not-allowed border border-slate-700">Agotado</button>` : `<button onclick="addToCart(${product.id})" aria-label="Añadir al carrito" class="bg-emerald-600 hover:bg-emerald-500 text-white p-2.5 rounded-xl transition-all duration-300 shadow-md hover:shadow-lg flex items-center justify-center group/btn">
                         <svg class="w-5 h-5 transform group-hover/btn:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"></path>
                         </svg>
-                    </button>
+                    </button>`}
                 </div>
             </div>
         </div>
-    `).join('');
+    `;
+    }).join('');
+}
+
+// --- STOCK ---
+// stock === null -> sin control de stock (siempre disponible)
+// stock === 0    -> agotado
+// stock  >  0    -> unidades disponibles
+const LOW_STOCK_THRESHOLD = 3;
+function isSoldOut(p) { return !!p && p.stock !== null && p.stock !== undefined && p.stock <= 0; }
+function stockLimit(p) { return (p && p.stock !== null && p.stock !== undefined) ? p.stock : Infinity; }
+
+// Quita del carrito lo que se agotó y ajusta cantidades que superan el stock actual.
+function reconcileCartWithStock() {
+    let changed = false;
+    cart = cart.filter(item => {
+        const p = products.find(x => x.id === item.id);
+        if (!p) return true;
+        if (isSoldOut(p)) { changed = true; return false; }
+        const limit = stockLimit(p);
+        if (item.quantity > limit) { item.quantity = limit; changed = true; }
+        return true;
+    });
+    if (changed) {
+        setStorage('cart', cart);
+        setTimeout(() => showToast('Actualizamos tu carrito: algunos productos se agotaron o tienen menos unidades'), 300);
+    }
 }
 
 // Carrito Actions
@@ -655,8 +690,17 @@ function addToCart(productId) {
     const product = products.find(p => p.id === productId);
     if (!product) return;
 
+    if (isSoldOut(product)) {
+        showToast(`${product.name} está agotado`);
+        return;
+    }
+
     const existingItem = cart.find(item => item.id === productId);
     if (existingItem) {
+        if (existingItem.quantity + 1 > stockLimit(product)) {
+            showToast(`Solo hay ${product.stock} unidad(es) disponibles de ${product.name}`);
+            return;
+        }
         existingItem.quantity += 1;
     } else {
         cart.push({ ...product, quantity: 1 });
@@ -670,6 +714,11 @@ function addToCart(productId) {
 function updateQuantity(productId, delta) {
     const itemIndex = cart.findIndex(item => item.id === productId);
     if (itemIndex > -1) {
+        const prod = products.find(p => p.id === productId);
+        if (delta > 0 && prod && cart[itemIndex].quantity + delta > stockLimit(prod)) {
+            showToast(`Solo hay ${prod.stock} unidad(es) disponibles`);
+            return;
+        }
         cart[itemIndex].quantity += delta;
         if (cart[itemIndex].quantity <= 0) {
             cart.splice(itemIndex, 1);
@@ -893,7 +942,7 @@ function showToast(text) {
 
 function quickView(productId) {
     const p = products.find(x => x.id === productId);
-    if (p) alert(`${p.name}\n\n${p.description}\n\nPrecio: $${p.price.toFixed(2)}`);
+    if (p) alert(`${p.name}\n\n${p.description}\n\nPrecio: $${p.price.toFixed(2)}${isSoldOut(p) ? '\n\n⛔ AGOTADO' : (p.stock !== null && p.stock !== undefined ? `\n\nDisponibles: ${p.stock}` : '')}`);
 }
 
 /* ==========================================
@@ -1088,12 +1137,39 @@ async function loadProductSuppliers() {
     });
 }
 
+function stockCell(p) {
+    if (p.stock === null || p.stock === undefined) return `<span class="text-slate-500 text-xs italic">Sin límite</span>`;
+    if (p.stock <= 0) return `<span class="bg-rose-500/10 text-rose-400 font-bold px-2.5 py-1 rounded-lg text-xs">Agotado</span>`;
+    const low = p.stock <= LOW_STOCK_THRESHOLD;
+    return `<span class="${low ? 'bg-amber-500/10 text-amber-400' : 'bg-emerald-500/10 text-emerald-400'} font-bold px-2.5 py-1 rounded-lg text-xs">${p.stock} uds</span>`;
+}
+
+// Reabastecer: suma unidades al stock actual (si estaba sin control, arranca desde 0).
+async function restockProduct(id) {
+    const p = products.find(x => x.id === id);
+    if (!p) return;
+    const current = (p.stock === null || p.stock === undefined) ? 0 : p.stock;
+    const input = prompt(`¿Cuántas unidades ingresaron de "${p.name}"?\nStock actual: ${current}`, '10');
+    if (input === null) return;
+    const qty = parseInt(input, 10);
+    if (isNaN(qty) || qty <= 0) { alert('Escribe un número mayor que 0.'); return; }
+    const { error } = await supabase.from('products').update({ stock: current + qty }).eq('id', id);
+    if (error) {
+        alert('No se pudo actualizar el stock: ' + error.message + '\n\n¿Corriste la migración MIGRACION_v4_stock.sql en Supabase?');
+        return;
+    }
+    await loadCatalog();
+    renderAdminProducts();
+    showToast(`Stock de ${p.name}: ${current + qty} unidades`);
+}
+window.restockProduct = restockProduct;
+
 async function renderAdminProducts() {
     await loadProductSuppliers();
 
     const tbody = document.getElementById('admin-products-table');
     if (products.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="7" class="px-6 py-10 text-center text-slate-500">No hay productos registrados.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="8" class="px-6 py-10 text-center text-slate-500">No hay productos registrados.</td></tr>`;
         return;
     }
 
@@ -1123,8 +1199,10 @@ async function renderAdminProducts() {
             <td class="px-6 py-4"><span class="bg-indigo-500/10 text-indigo-400 font-semibold px-2.5 py-1 rounded-lg text-xs capitalize">${escapeHtml(p.category)}</span>${p.subcategory ? `<span class="block text-[11px] text-slate-500 mt-1 capitalize">${escapeHtml(p.subcategory)}</span>` : ''}</td>
             <td class="px-6 py-4 font-extrabold text-white">$${p.price.toFixed(2)}</td>
             <td class="px-6 py-4">${profitCell}</td>
+            <td class="px-6 py-4">${stockCell(p)}</td>
             <td class="px-6 py-4">${supplierCell}</td>
             <td class="px-6 py-4 text-right space-x-2">
+                <button onclick="restockProduct(${p.id})" class="text-emerald-400 hover:text-emerald-300 font-semibold text-xs bg-emerald-500/10 hover:bg-emerald-500/20 px-3 py-1.5 rounded-lg transition-colors">+ Stock</button>
                 <button onclick="openProductModal(${p.id})" class="text-indigo-400 hover:text-indigo-300 font-semibold text-xs bg-indigo-500/10 hover:bg-indigo-500/20 px-3 py-1.5 rounded-lg transition-colors">Editar</button>
                 <button onclick="deleteProduct(${p.id})" class="text-rose-400 hover:text-rose-300 font-semibold text-xs bg-rose-500/10 hover:bg-rose-500/20 px-3 py-1.5 rounded-lg transition-colors">Eliminar</button>
             </td>
@@ -1163,6 +1241,8 @@ function openProductModal(id = null) {
         document.getElementById('prod-cost').value = (supplier.costo !== null && supplier.costo !== undefined) ? supplier.costo : '';
         document.getElementById('prod-discount').value = (p && p.affiliateDiscount) ? p.affiliateDiscount : 0;
         document.getElementById('prod-commission').value = supplier.comision || 0;
+        const stockEl = document.getElementById('prod-stock');
+        if (stockEl) stockEl.value = (p && p.stock !== null && p.stock !== undefined) ? p.stock : '';
     } else {
         title.textContent = "Nuevo Producto";
         const form = document.getElementById('product-form');
@@ -1227,10 +1307,14 @@ async function handleSaveProduct(e) {
     const descuento = parseFloat(document.getElementById('prod-discount').value) || 0;
     const comision = parseFloat(document.getElementById('prod-commission').value) || 0;
     const subcategory = (document.getElementById('prod-subcategory') || {}).value || '';
+    const stockEl = document.getElementById('prod-stock');
+    const stockRaw = stockEl ? stockEl.value.trim() : '';
+    const stockParsed = parseInt(stockRaw, 10);
+    const stock = (stockRaw === '' || isNaN(stockParsed)) ? null : Math.max(0, stockParsed);
 
     // Todo se guarda en una sola llamada al servidor, que además valida el
     // candado anti-pérdida: (precio - descuento - comisión) no puede quedar por debajo del costo.
-    const { error } = await supabase.rpc('admin_save_product', {
+    const { data: savedId, error } = await supabase.rpc('admin_save_product', {
         p_id: editingProductId,
         p_name: name, p_category: category, p_price: price, p_original_price: originalPrice,
         p_image: image, p_description: description, p_badge: badge,
@@ -1241,6 +1325,12 @@ async function handleSaveProduct(e) {
     if (error) {
         alert('No se pudo guardar el producto: ' + error.message);
         return;
+    }
+
+    // El stock se guarda aparte (columna products.stock; la función del servidor no cambia).
+    if (stockEl && savedId) {
+        const { error: stockErr } = await supabase.from('products').update({ stock }).eq('id', savedId);
+        if (stockErr) alert('El producto se guardó, pero no se pudo guardar el stock: ' + stockErr.message + '\n\n¿Corriste la migración MIGRACION_v4_stock.sql en Supabase?');
     }
 
     await applyProductSubcategory(name, category, subcategory);
