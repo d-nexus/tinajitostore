@@ -107,7 +107,7 @@ async function initializeAppAsync() {
 // distintas, con recarga completa) no hacer esperar al visitante la misma
 // consulta a Supabase una y otra vez. Vive solo en esta pestaña (sessionStorage)
 // y se refresca solo, así que nunca queda "pegada" para siempre.
-const CATALOG_CACHE_KEY = 'nexus_catalog_cache_v4';
+const CATALOG_CACHE_KEY = 'nexus_catalog_cache_v3';
 const CATALOG_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutos
 
 function readCatalogCache() {
@@ -147,7 +147,6 @@ async function loadCatalog() {
         categories = cached.categories;
         products = cached.products;
         subcategories = Array.isArray(cached.subcategories) ? cached.subcategories : [];
-        reconcileCartWithStock();
         initStoreView();
         paintedFromCache = true;
     }
@@ -186,14 +185,12 @@ async function loadCatalog() {
             description: p.description,
             badge: p.badge,
             subcategory: p.subcategory || null,
-            stock: (p.stock === null || p.stock === undefined) ? null : Number(p.stock), // null = sin control; 0 = agotado
             affiliateDiscount: Number(p.descuento_afiliado || 0) // pesos por unidad; es público (se ve como ahorro en el carrito)
         }));
 
         subcategories = subErr ? [] : (subs || []).map(s => ({ id: s.id, category: s.category, name: s.name }));
 
         writeCatalogCache(categories, products, subcategories);
-        reconcileCartWithStock();
         initStoreView();
     } catch (err) {
         console.error('Error al cargar catálogo:', err);
@@ -296,6 +293,7 @@ function setupGlobalEvents() {
 
     document.getElementById('add-product-btn').addEventListener('click', () => openProductModal());
     document.getElementById('product-form').addEventListener('submit', handleSaveProduct);
+    document.getElementById('prod-image-file').addEventListener('change', handleProductImageUpload);
 
     const prodCatSelect = document.getElementById('prod-category');
     if (prodCatSelect) prodCatSelect.addEventListener('change', () => refreshProductSubcategoryOptions(''));
@@ -600,8 +598,6 @@ function applySearchAndFilter() {
         return matchesCategory && matchesSub && matchesQuery;
     });
 
-    // Los agotados se muestran (marcados) pero al final de la lista.
-    filtered.sort((a, b) => Number(isSoldOut(a)) - Number(isSoldOut(b)));
     renderProducts(filtered);
 }
 
@@ -622,15 +618,11 @@ function renderProducts(productsToRender) {
         return;
     }
 
-    grid.innerHTML = productsToRender.map(product => {
-        const soldOut = isSoldOut(product);
-        const lowStock = !soldOut && product.stock !== null && product.stock !== undefined && product.stock <= LOW_STOCK_THRESHOLD;
-        return `
+    grid.innerHTML = productsToRender.map(product => `
         <div class="bg-slate-900 rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 overflow-hidden flex flex-col group border border-slate-800 hover:border-slate-700">
             <div class="relative overflow-hidden bg-slate-950 aspect-square">
-                <img src="${escapeHtml(product.image)}" alt="${escapeHtml(product.name)}" loading="lazy" class="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-500 ${soldOut ? 'grayscale opacity-60' : ''}" onerror="this.src='https://images.unsplash.com/photo-1584438784894-089d6a62b8fa?auto=format&fit=crop&w=600&q=80'">
-                ${soldOut ? `<span class="absolute top-3 left-3 bg-rose-600 text-white text-xs font-bold px-3 py-1 rounded-full shadow-md shadow-rose-600/30">Agotado</span>` : (product.badge ? `<span class="absolute top-3 left-3 bg-emerald-600 text-white text-xs font-semibold px-3 py-1 rounded-full shadow-md shadow-emerald-600/30">${escapeHtml(product.badge)}</span>` : '')}
-                ${lowStock ? `<span class="absolute bottom-3 left-3 bg-amber-500 text-slate-950 text-[11px] font-bold px-2.5 py-1 rounded-full">¡Últimas ${product.stock}!</span>` : ''}
+                <img src="${escapeHtml(product.image)}" alt="${escapeHtml(product.name)}" loading="lazy" class="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-500" onerror="this.src='https://images.unsplash.com/photo-1584438784894-089d6a62b8fa?auto=format&fit=crop&w=600&q=80'">
+                ${product.badge ? `<span class="absolute top-3 left-3 bg-emerald-600 text-white text-xs font-semibold px-3 py-1 rounded-full shadow-md shadow-emerald-600/30">${escapeHtml(product.badge)}</span>` : ''}
                 <div class="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                     <button onclick="quickView(${product.id})" class="bg-slate-900 text-slate-100 px-4 py-2 rounded-xl font-medium text-sm shadow-xl transform translate-y-3 group-hover:translate-y-0 transition-all duration-300 hover:bg-emerald-600 hover:text-white border border-slate-700">
                         Ver Detalles
@@ -648,41 +640,15 @@ function renderProducts(productsToRender) {
                         <span class="text-xl font-extrabold text-white">$${product.price.toFixed(2)}</span>
                         ${product.originalPrice ? `<span class="text-xs text-slate-500 line-through ml-1.5">$${product.originalPrice.toFixed(2)}</span>` : ''}
                     </div>
-                    ${soldOut ? `<button disabled aria-label="Producto agotado" class="bg-slate-800 text-slate-500 text-xs font-bold px-3 py-2.5 rounded-xl cursor-not-allowed border border-slate-700">Agotado</button>` : `<button onclick="addToCart(${product.id})" aria-label="Añadir al carrito" class="bg-emerald-600 hover:bg-emerald-500 text-white p-2.5 rounded-xl transition-all duration-300 shadow-md hover:shadow-lg flex items-center justify-center group/btn">
+                    <button onclick="addToCart(${product.id})" class="bg-emerald-600 hover:bg-emerald-500 text-white p-2.5 rounded-xl transition-all duration-300 shadow-md hover:shadow-lg flex items-center justify-center group/btn">
                         <svg class="w-5 h-5 transform group-hover/btn:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"></path>
                         </svg>
-                    </button>`}
+                    </button>
                 </div>
             </div>
         </div>
-    `;
-    }).join('');
-}
-
-// --- STOCK ---
-// stock === null -> sin control de stock (siempre disponible)
-// stock === 0    -> agotado
-// stock  >  0    -> unidades disponibles
-const LOW_STOCK_THRESHOLD = 3;
-function isSoldOut(p) { return !!p && p.stock !== null && p.stock !== undefined && p.stock <= 0; }
-function stockLimit(p) { return (p && p.stock !== null && p.stock !== undefined) ? p.stock : Infinity; }
-
-// Quita del carrito lo que se agotó y ajusta cantidades que superan el stock actual.
-function reconcileCartWithStock() {
-    let changed = false;
-    cart = cart.filter(item => {
-        const p = products.find(x => x.id === item.id);
-        if (!p) return true;
-        if (isSoldOut(p)) { changed = true; return false; }
-        const limit = stockLimit(p);
-        if (item.quantity > limit) { item.quantity = limit; changed = true; }
-        return true;
-    });
-    if (changed) {
-        setStorage('cart', cart);
-        setTimeout(() => showToast('Actualizamos tu carrito: algunos productos se agotaron o tienen menos unidades'), 300);
-    }
+    `).join('');
 }
 
 // Carrito Actions
@@ -690,17 +656,8 @@ function addToCart(productId) {
     const product = products.find(p => p.id === productId);
     if (!product) return;
 
-    if (isSoldOut(product)) {
-        showToast(`${product.name} está agotado`);
-        return;
-    }
-
     const existingItem = cart.find(item => item.id === productId);
     if (existingItem) {
-        if (existingItem.quantity + 1 > stockLimit(product)) {
-            showToast(`Solo hay ${product.stock} unidad(es) disponibles de ${product.name}`);
-            return;
-        }
         existingItem.quantity += 1;
     } else {
         cart.push({ ...product, quantity: 1 });
@@ -714,11 +671,6 @@ function addToCart(productId) {
 function updateQuantity(productId, delta) {
     const itemIndex = cart.findIndex(item => item.id === productId);
     if (itemIndex > -1) {
-        const prod = products.find(p => p.id === productId);
-        if (delta > 0 && prod && cart[itemIndex].quantity + delta > stockLimit(prod)) {
-            showToast(`Solo hay ${prod.stock} unidad(es) disponibles`);
-            return;
-        }
         cart[itemIndex].quantity += delta;
         if (cart[itemIndex].quantity <= 0) {
             cart.splice(itemIndex, 1);
@@ -942,7 +894,7 @@ function showToast(text) {
 
 function quickView(productId) {
     const p = products.find(x => x.id === productId);
-    if (p) alert(`${p.name}\n\n${p.description}\n\nPrecio: $${p.price.toFixed(2)}${isSoldOut(p) ? '\n\n⛔ AGOTADO' : (p.stock !== null && p.stock !== undefined ? `\n\nDisponibles: ${p.stock}` : '')}`);
+    if (p) alert(`${p.name}\n\n${p.description}\n\nPrecio: $${p.price.toFixed(2)}`);
 }
 
 /* ==========================================
@@ -978,8 +930,6 @@ function switchAdminTab(tabName) {
 }
 
 // --- 1. REPORTE DE VENTAS Y COMISIONES ---
-const estadoDe = s => s.estado || 'confirmada'; // compatibilidad si aún no corriste la migración v3
-
 async function renderAdminDashboard() {
     const { data, error } = await supabase.from('sales').select('*').order('fecha', { ascending: false });
     if (error) {
@@ -988,135 +938,50 @@ async function renderAdminDashboard() {
     }
     salesHistory = data || [];
 
-    // Solo las ventas CONFIRMADAS cuentan para totales y comisiones.
-    const confirmed = salesHistory.filter(s => estadoDe(s) === 'confirmada');
-    const pendingCount = salesHistory.filter(s => estadoDe(s) === 'pendiente').length;
+    const totalSalesCount = salesHistory.length;
+    const totalRevenue = salesHistory.reduce((acc, s) => acc + Number(s.monto_venta), 0);
+    const totalCommissions = salesHistory.reduce((acc, s) => acc + Number(s.comision_ganada), 0);
 
-    const totalRevenue = confirmed.reduce((acc, s) => acc + Number(s.monto_venta), 0);
-    const totalCommissions = confirmed.reduce((acc, s) => acc + Number(s.comision_ganada), 0);
-    const totalProfit = confirmed.reduce((acc, s) => acc + Number(s.ganancia || 0), 0);
-
-    document.getElementById('stat-total-sales').textContent = confirmed.length;
+    document.getElementById('stat-total-sales').textContent = totalSalesCount;
     document.getElementById('stat-total-revenue').textContent = `$${totalRevenue.toFixed(2)}`;
     document.getElementById('stat-total-commissions').textContent = `$${totalCommissions.toFixed(2)}`;
+    const totalProfit = salesHistory.reduce((acc, s) => acc + Number(s.ganancia || 0), 0);
     const profitEl = document.getElementById('stat-total-profit');
     if (profitEl) profitEl.textContent = `$${totalProfit.toFixed(2)}`;
-    const badge = document.getElementById('admin-pending-badge');
-    if (badge) badge.textContent = pendingCount ? `${pendingCount} pendiente(s) por revisar` : '';
 
-    // --- Resumen por afiliado ---
     const statsByCode = {};
     salesHistory.forEach(s => {
-        const st = estadoDe(s);
-        if (st === 'cancelada') return;
         if (!statsByCode[s.codigo]) {
-            statsByCode[s.codigo] = { nombre: s.nombre, count: 0, pending: 0, revenue: 0, commission: 0, unpaid: 0, profit: 0 };
+            statsByCode[s.codigo] = { nombre: s.nombre, count: 0, revenue: 0, commission: 0, profit: 0 };
         }
-        const item = statsByCode[s.codigo];
-        if (st === 'pendiente') { item.pending += 1; return; }
-        item.count += 1;
-        item.revenue += Number(s.monto_venta);
-        item.commission += Number(s.comision_ganada);
-        item.profit += Number(s.ganancia || 0);
-        if (!s.comision_pagada) item.unpaid += Number(s.comision_ganada);
+        statsByCode[s.codigo].count += 1;
+        statsByCode[s.codigo].revenue += Number(s.monto_venta);
+        statsByCode[s.codigo].commission += Number(s.comision_ganada);
+        statsByCode[s.codigo].profit += Number(s.ganancia || 0);
     });
 
     const tableBody = document.getElementById('sales-report-table');
     const keys = Object.keys(statsByCode);
 
     if (keys.length === 0) {
-        tableBody.innerHTML = `<tr><td colspan="8" class="px-6 py-10 text-center text-slate-500">No hay ventas registradas con códigos de afiliados aún.</td></tr>`;
-    } else {
-        tableBody.innerHTML = keys.map(code => {
-            const item = statsByCode[code];
-            const payBtn = item.unpaid > 0
-                ? `<button onclick="adminPayAffiliate('${escapeHtml(code)}')" class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold">Pagar todo</button>`
-                : `<span class="text-xs text-slate-500">Al día</span>`;
-            return `
-                <tr class="hover:bg-slate-800/50 transition-colors">
-                    <td class="px-6 py-4 font-mono font-bold text-white">${escapeHtml(code)}</td>
-                    <td class="px-6 py-4 text-slate-300 font-medium">${escapeHtml(item.nombre)}</td>
-                    <td class="px-6 py-4 text-slate-400 text-center">${item.count}</td>
-                    <td class="px-6 py-4 text-amber-400 text-center font-bold">${item.pending}</td>
-                    <td class="px-6 py-4 text-white font-bold">$${item.revenue.toFixed(2)}</td>
-                    <td class="px-6 py-4 text-indigo-400 font-extrabold">$${item.commission.toFixed(2)}</td>
-                    <td class="px-6 py-4 text-amber-400 font-extrabold">$${item.unpaid.toFixed(2)}</td>
-                    <td class="px-6 py-4 text-emerald-400 font-extrabold">$${item.profit.toFixed(2)}</td>
-                    <td class="px-6 py-4 text-right">${payBtn}</td>
-                </tr>
-            `;
-        }).join('');
-    }
-
-    renderAdminSalesList();
-}
-
-// --- Lista de ventas con acciones (confirmar / cancelar / pagar) ---
-function renderAdminSalesList() {
-    const tbody = document.getElementById('admin-sales-list');
-    if (!tbody) return;
-    if (salesHistory.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="7" class="px-6 py-10 text-center text-slate-500">Aún no hay ventas.</td></tr>`;
+        tableBody.innerHTML = `<tr><td colspan="6" class="px-6 py-10 text-center text-slate-500">No hay ventas registradas con códigos de afiliados aún.</td></tr>`;
         return;
     }
-    const badges = {
-        pendiente: 'bg-amber-500/10 text-amber-400',
-        confirmada: 'bg-emerald-500/10 text-emerald-400',
-        cancelada: 'bg-rose-500/10 text-rose-400'
-    };
-    const btn = (label, fn, color) => `<button onclick="${fn}" class="px-2.5 py-1 rounded-lg ${color} text-xs font-bold">${label}</button>`;
-    // Pendientes primero, luego el resto por fecha; máximo 50 filas.
-    const rows = [...salesHistory]
-        .sort((x, y) => (estadoDe(x) === 'pendiente' ? 0 : 1) - (estadoDe(y) === 'pendiente' ? 0 : 1))
-        .slice(0, 50);
 
-    tbody.innerHTML = rows.map(s => {
-        const st = estadoDe(s);
-        const id = Number(s.id);
-        let actions = '';
-        if (st === 'pendiente') {
-            actions = btn('Confirmar', `adminSetSaleStatus(${id},'confirmada')`, 'bg-emerald-600 hover:bg-emerald-500 text-white')
-                    + ' ' + btn('Cancelar', `adminSetSaleStatus(${id},'cancelada')`, 'bg-rose-600 hover:bg-rose-500 text-white');
-        } else if (st === 'confirmada') {
-            actions = (s.comision_pagada
-                ? btn('Deshacer pago', `adminSetCommissionPaid(${id},false)`, 'bg-slate-700 hover:bg-slate-600 text-slate-200')
-                : btn('Marcar pagada', `adminSetCommissionPaid(${id},true)`, 'bg-indigo-600 hover:bg-indigo-500 text-white')
-                  + ' ' + btn('Cancelar', `adminSetSaleStatus(${id},'cancelada')`, 'bg-rose-600 hover:bg-rose-500 text-white'));
-        } else {
-            actions = btn('Reabrir', `adminSetSaleStatus(${id},'pendiente')`, 'bg-slate-700 hover:bg-slate-600 text-slate-200');
-        }
-        const label = st === 'confirmada' && s.comision_pagada ? 'Pagada' : st.charAt(0).toUpperCase() + st.slice(1);
+    tableBody.innerHTML = keys.map(code => {
+        const item = statsByCode[code];
         return `
             <tr class="hover:bg-slate-800/50 transition-colors">
-                <td class="px-6 py-4"><span class="block font-bold text-white">#${id}</span><span class="block text-[11px] text-slate-400">${s.fecha ? new Date(s.fecha).toLocaleString() : ''}</span></td>
-                <td class="px-6 py-4 font-mono font-bold text-white">${escapeHtml(s.codigo)}</td>
-                <td class="px-6 py-4 text-slate-300">${escapeHtml(s.cliente || 'Cliente General')}</td>
-                <td class="px-6 py-4 text-white font-bold">$${Number(s.monto_venta).toFixed(2)}</td>
-                <td class="px-6 py-4 text-indigo-400 font-bold">$${Number(s.comision_ganada).toFixed(2)}</td>
-                <td class="px-6 py-4 text-center"><span class="${badges[st] || badges.pendiente} font-bold px-3 py-1 rounded-full text-xs">${label}</span></td>
-                <td class="px-6 py-4 text-right whitespace-nowrap">${actions}</td>
-            </tr>`;
+                <td class="px-6 py-4 font-mono font-bold text-white">${escapeHtml(code)}</td>
+                <td class="px-6 py-4 text-slate-300 font-medium">${escapeHtml(item.nombre)}</td>
+                <td class="px-6 py-4 text-slate-400 text-center">${item.count}</td>
+                <td class="px-6 py-4 text-white font-bold">$${item.revenue.toFixed(2)}</td>
+                <td class="px-6 py-4 text-indigo-400 font-extrabold">$${item.commission.toFixed(2)}</td>
+                <td class="px-6 py-4 text-emerald-400 font-extrabold">$${item.profit.toFixed(2)}</td>
+            </tr>
+        `;
     }).join('');
 }
-
-async function adminRpcAndRefresh(fn, params, okMsg) {
-    const { error } = await supabase.rpc(fn, params);
-    if (error) { alert('No se pudo completar la acción: ' + error.message); return; }
-    if (okMsg) showToast(okMsg);
-    renderAdminDashboard();
-}
-
-window.adminSetSaleStatus = function (id, estado) {
-    if (estado === 'cancelada' && !confirm('¿Cancelar esta venta? Dejará de contar para comisiones.')) return;
-    adminRpcAndRefresh('admin_set_sale_status', { p_id: id, p_estado: estado }, `Venta #${id}: ${estado}`);
-};
-window.adminSetCommissionPaid = function (id, pagada) {
-    adminRpcAndRefresh('admin_set_commission_paid', { p_id: id, p_pagada: pagada }, pagada ? 'Comisión marcada como pagada' : 'Pago deshecho');
-};
-window.adminPayAffiliate = function (codigo) {
-    if (!confirm(`¿Marcar como pagadas todas las comisiones confirmadas de ${codigo}?`)) return;
-    adminRpcAndRefresh('admin_pay_affiliate', { p_codigo: codigo }, 'Comisiones marcadas como pagadas');
-};
 
 // --- 2. GESTIÓN DE PRODUCTOS (CRUD) ---
 
@@ -1137,39 +1002,12 @@ async function loadProductSuppliers() {
     });
 }
 
-function stockCell(p) {
-    if (p.stock === null || p.stock === undefined) return `<span class="text-slate-500 text-xs italic">Sin límite</span>`;
-    if (p.stock <= 0) return `<span class="bg-rose-500/10 text-rose-400 font-bold px-2.5 py-1 rounded-lg text-xs">Agotado</span>`;
-    const low = p.stock <= LOW_STOCK_THRESHOLD;
-    return `<span class="${low ? 'bg-amber-500/10 text-amber-400' : 'bg-emerald-500/10 text-emerald-400'} font-bold px-2.5 py-1 rounded-lg text-xs">${p.stock} uds</span>`;
-}
-
-// Reabastecer: suma unidades al stock actual (si estaba sin control, arranca desde 0).
-async function restockProduct(id) {
-    const p = products.find(x => x.id === id);
-    if (!p) return;
-    const current = (p.stock === null || p.stock === undefined) ? 0 : p.stock;
-    const input = prompt(`¿Cuántas unidades ingresaron de "${p.name}"?\nStock actual: ${current}`, '10');
-    if (input === null) return;
-    const qty = parseInt(input, 10);
-    if (isNaN(qty) || qty <= 0) { alert('Escribe un número mayor que 0.'); return; }
-    const { error } = await supabase.from('products').update({ stock: current + qty }).eq('id', id);
-    if (error) {
-        alert('No se pudo actualizar el stock: ' + error.message + '\n\n¿Corriste la migración MIGRACION_v4_stock.sql en Supabase?');
-        return;
-    }
-    await loadCatalog();
-    renderAdminProducts();
-    showToast(`Stock de ${p.name}: ${current + qty} unidades`);
-}
-window.restockProduct = restockProduct;
-
 async function renderAdminProducts() {
     await loadProductSuppliers();
 
     const tbody = document.getElementById('admin-products-table');
     if (products.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="8" class="px-6 py-10 text-center text-slate-500">No hay productos registrados.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="7" class="px-6 py-10 text-center text-slate-500">No hay productos registrados.</td></tr>`;
         return;
     }
 
@@ -1199,10 +1037,8 @@ async function renderAdminProducts() {
             <td class="px-6 py-4"><span class="bg-indigo-500/10 text-indigo-400 font-semibold px-2.5 py-1 rounded-lg text-xs capitalize">${escapeHtml(p.category)}</span>${p.subcategory ? `<span class="block text-[11px] text-slate-500 mt-1 capitalize">${escapeHtml(p.subcategory)}</span>` : ''}</td>
             <td class="px-6 py-4 font-extrabold text-white">$${p.price.toFixed(2)}</td>
             <td class="px-6 py-4">${profitCell}</td>
-            <td class="px-6 py-4">${stockCell(p)}</td>
             <td class="px-6 py-4">${supplierCell}</td>
             <td class="px-6 py-4 text-right space-x-2">
-                <button onclick="restockProduct(${p.id})" class="text-emerald-400 hover:text-emerald-300 font-semibold text-xs bg-emerald-500/10 hover:bg-emerald-500/20 px-3 py-1.5 rounded-lg transition-colors">+ Stock</button>
                 <button onclick="openProductModal(${p.id})" class="text-indigo-400 hover:text-indigo-300 font-semibold text-xs bg-indigo-500/10 hover:bg-indigo-500/20 px-3 py-1.5 rounded-lg transition-colors">Editar</button>
                 <button onclick="deleteProduct(${p.id})" class="text-rose-400 hover:text-rose-300 font-semibold text-xs bg-rose-500/10 hover:bg-rose-500/20 px-3 py-1.5 rounded-lg transition-colors">Eliminar</button>
             </td>
@@ -1233,6 +1069,7 @@ function openProductModal(id = null) {
             document.getElementById('prod-original-price').value = p.originalPrice || '';
             document.getElementById('prod-badge').value = p.badge || '';
             document.getElementById('prod-image').value = p.image;
+            setProductImagePreview(p.image);
             document.getElementById('prod-desc').value = p.description;
         }
         const supplier = productSuppliers[id] || { nombre: '', telefono: '' };
@@ -1241,12 +1078,12 @@ function openProductModal(id = null) {
         document.getElementById('prod-cost').value = (supplier.costo !== null && supplier.costo !== undefined) ? supplier.costo : '';
         document.getElementById('prod-discount').value = (p && p.affiliateDiscount) ? p.affiliateDiscount : 0;
         document.getElementById('prod-commission').value = supplier.comision || 0;
-        const stockEl = document.getElementById('prod-stock');
-        if (stockEl) stockEl.value = (p && p.stock !== null && p.stock !== undefined) ? p.stock : '';
     } else {
         title.textContent = "Nuevo Producto";
         const form = document.getElementById('product-form');
         if (form) form.reset();
+        setProductImagePreview('');
+        document.getElementById('prod-image-status').textContent = '';
         document.getElementById('prod-discount').value = 0;
         document.getElementById('prod-commission').value = 0;
     }
@@ -1292,6 +1129,69 @@ function updateMarginPreview() {
         (conAf < 0 ? '<br><span class="text-rose-400">⚠ Perderías dinero: baja el descuento o la comisión. No se podrá guardar.</span>' : '');
 }
 
+function setProductImagePreview(url) {
+    const img = document.getElementById('prod-image-preview');
+    if (!img) return;
+    if (url) {
+        img.src = url;
+        img.classList.remove('hidden');
+    } else {
+        img.src = '';
+        img.classList.add('hidden');
+    }
+}
+
+// Sube la imagen elegida al bucket "products" de Supabase Storage y pone
+// la URL pública resultante en el campo de texto (que sigue existiendo
+// por si el admin prefiere pegar una URL externa en vez de subir un archivo).
+async function handleProductImageUpload(e) {
+    const file = e.target.files && e.target.files[0];
+    const status = document.getElementById('prod-image-status');
+    if (!file) return;
+
+    const maxBytes = 5 * 1024 * 1024;
+    const allowed = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'];
+    if (!allowed.includes(file.type)) {
+        status.textContent = 'Formato no permitido. Usa PNG, JPG, WEBP o GIF.';
+        status.className = 'text-xs text-rose-400 mt-1.5';
+        e.target.value = '';
+        return;
+    }
+    if (file.size > maxBytes) {
+        status.textContent = 'La imagen pesa más de 5MB. Comprímela e inténtalo de nuevo.';
+        status.className = 'text-xs text-rose-400 mt-1.5';
+        e.target.value = '';
+        return;
+    }
+
+    status.textContent = 'Subiendo imagen...';
+    status.className = 'text-xs text-slate-400 mt-1.5';
+    e.target.disabled = true;
+
+    const ext = file.name.split('.').pop().toLowerCase();
+    const path = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
+
+    const { error } = await supabase.storage.from('products').upload(path, file, {
+        cacheControl: '3600',
+        upsert: false
+    });
+
+    e.target.disabled = false;
+
+    if (error) {
+        status.textContent = 'No se pudo subir la imagen: ' + error.message;
+        status.className = 'text-xs text-rose-400 mt-1.5';
+        e.target.value = '';
+        return;
+    }
+
+    const { data } = supabase.storage.from('products').getPublicUrl(path);
+    document.getElementById('prod-image').value = data.publicUrl;
+    setProductImagePreview(data.publicUrl);
+    status.textContent = 'Imagen subida ✅';
+    status.className = 'text-xs text-emerald-400 mt-1.5';
+}
+
 async function handleSaveProduct(e) {
     e.preventDefault();
     const name = document.getElementById('prod-name').value.trim();
@@ -1307,14 +1207,10 @@ async function handleSaveProduct(e) {
     const descuento = parseFloat(document.getElementById('prod-discount').value) || 0;
     const comision = parseFloat(document.getElementById('prod-commission').value) || 0;
     const subcategory = (document.getElementById('prod-subcategory') || {}).value || '';
-    const stockEl = document.getElementById('prod-stock');
-    const stockRaw = stockEl ? stockEl.value.trim() : '';
-    const stockParsed = parseInt(stockRaw, 10);
-    const stock = (stockRaw === '' || isNaN(stockParsed)) ? null : Math.max(0, stockParsed);
 
     // Todo se guarda en una sola llamada al servidor, que además valida el
     // candado anti-pérdida: (precio - descuento - comisión) no puede quedar por debajo del costo.
-    const { data: savedId, error } = await supabase.rpc('admin_save_product', {
+    const { error } = await supabase.rpc('admin_save_product', {
         p_id: editingProductId,
         p_name: name, p_category: category, p_price: price, p_original_price: originalPrice,
         p_image: image, p_description: description, p_badge: badge,
@@ -1325,12 +1221,6 @@ async function handleSaveProduct(e) {
     if (error) {
         alert('No se pudo guardar el producto: ' + error.message);
         return;
-    }
-
-    // El stock se guarda aparte (columna products.stock; la función del servidor no cambia).
-    if (stockEl && savedId) {
-        const { error: stockErr } = await supabase.from('products').update({ stock }).eq('id', savedId);
-        if (stockErr) alert('El producto se guardó, pero no se pudo guardar el stock: ' + stockErr.message + '\n\n¿Corriste la migración MIGRACION_v4_stock.sql en Supabase?');
     }
 
     await applyProductSubcategory(name, category, subcategory);
@@ -1655,11 +1545,9 @@ function renderPortalDashboard(aff) {
     // (get_affiliate_sales solo devuelve filas que coinciden con su código
     // Y su PIN correcto).
     const ambassadorSales = salesHistory;
-    // Solo las ventas confirmadas suman a sus totales.
-    const confirmedSales = ambassadorSales.filter(s => (s.estado || 'confirmada') === 'confirmada');
-    const totalSales = confirmedSales.length;
-    const totalRevenue = confirmedSales.reduce((acc, s) => acc + Number(s.monto_venta), 0);
-    const totalCommission = confirmedSales.reduce((acc, s) => acc + Number(s.comision_ganada), 0);
+    const totalSales = ambassadorSales.length;
+    const totalRevenue = ambassadorSales.reduce((acc, s) => acc + Number(s.monto_venta), 0);
+    const totalCommission = ambassadorSales.reduce((acc, s) => acc + Number(s.comision_ganada), 0);
 
     document.getElementById('portal-stat-sales').textContent = totalSales;
     document.getElementById('portal-stat-revenue').textContent = `$${totalRevenue.toFixed(2)}`;
@@ -1676,11 +1564,6 @@ function renderPortalDashboard(aff) {
 
     tbody.innerHTML = ambassadorSales.map(s => {
         const dateStr = s.fecha ? new Date(s.fecha).toLocaleDateString() : 'Reciente';
-        const st = s.estado || 'confirmada';
-        const badge = st === 'pendiente' ? ['En revisión', 'bg-amber-500/10 text-amber-400']
-            : st === 'cancelada' ? ['Cancelada', 'bg-rose-500/10 text-rose-400']
-            : s.comision_pagada ? ['Pagada', 'bg-indigo-500/10 text-indigo-400']
-            : ['Confirmada', 'bg-emerald-500/10 text-emerald-400'];
         return `
             <tr class="hover:bg-slate-800/50 transition-colors">
                 <td class="px-6 py-4">
@@ -1689,9 +1572,9 @@ function renderPortalDashboard(aff) {
                 </td>
                 <td class="px-6 py-4 text-slate-300 font-medium">${escapeHtml(s.cliente || 'Cliente General')}</td>
                 <td class="px-6 py-4 text-white font-bold">$${Number(s.monto_venta).toFixed(2)}</td>
-                <td class="px-6 py-4 font-extrabold ${st === 'cancelada' ? 'text-slate-500 line-through' : st === 'pendiente' ? 'text-amber-400' : 'text-emerald-400'}">+$${Number(s.comision_ganada).toFixed(2)}</td>
+                <td class="px-6 py-4 text-emerald-400 font-extrabold">+$${Number(s.comision_ganada).toFixed(2)}</td>
                 <td class="px-6 py-4 text-center">
-                    <span class="${badge[1]} font-bold px-3 py-1 rounded-full text-xs">${badge[0]}</span>
+                    <span class="bg-emerald-500/10 text-emerald-400 font-bold px-3 py-1 rounded-full text-xs">Completado</span>
                 </td>
             </tr>
         `;
@@ -1792,28 +1675,4 @@ window.cerrarSesionEmbajador = function () {
     if (video.readyState >= 1) {
         rafId = requestAnimationFrame(updateFade);
     }
-})();
-
-
-// --- MENÚ HAMBURGUESA (móvil) ---
-(function initMobileMenu() {
-    function setup() {
-        const btn = document.getElementById('menu-toggle');
-        const panel = document.getElementById('mobile-menu-panel');
-        if (!btn || !panel) return;
-        const iconOpen = document.getElementById('menu-icon-open');
-        const iconClose = document.getElementById('menu-icon-close');
-        function setOpen(open) {
-            panel.classList.toggle('hidden', !open);
-            btn.setAttribute('aria-expanded', String(open));
-            btn.setAttribute('aria-label', open ? 'Cerrar menú de categorías' : 'Abrir menú de categorías');
-            if (iconOpen) iconOpen.classList.toggle('hidden', open);
-            if (iconClose) iconClose.classList.toggle('hidden', !open);
-        }
-        btn.addEventListener('click', () => setOpen(panel.classList.contains('hidden')));
-        document.addEventListener('keydown', e => { if (e.key === 'Escape') setOpen(false); });
-        window.matchMedia('(min-width: 768px)').addEventListener('change', e => { if (e.matches) setOpen(false); });
-    }
-    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', setup);
-    else setup();
 })();
