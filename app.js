@@ -929,6 +929,8 @@ function switchAdminTab(tabName) {
 }
 
 // --- 1. REPORTE DE VENTAS Y COMISIONES ---
+const estadoDe = s => s.estado || 'confirmada'; // compatibilidad si aún no corriste la migración v3
+
 async function renderAdminDashboard() {
     const { data, error } = await supabase.from('sales').select('*').order('fecha', { ascending: false });
     if (error) {
@@ -937,50 +939,135 @@ async function renderAdminDashboard() {
     }
     salesHistory = data || [];
 
-    const totalSalesCount = salesHistory.length;
-    const totalRevenue = salesHistory.reduce((acc, s) => acc + Number(s.monto_venta), 0);
-    const totalCommissions = salesHistory.reduce((acc, s) => acc + Number(s.comision_ganada), 0);
+    // Solo las ventas CONFIRMADAS cuentan para totales y comisiones.
+    const confirmed = salesHistory.filter(s => estadoDe(s) === 'confirmada');
+    const pendingCount = salesHistory.filter(s => estadoDe(s) === 'pendiente').length;
 
-    document.getElementById('stat-total-sales').textContent = totalSalesCount;
+    const totalRevenue = confirmed.reduce((acc, s) => acc + Number(s.monto_venta), 0);
+    const totalCommissions = confirmed.reduce((acc, s) => acc + Number(s.comision_ganada), 0);
+    const totalProfit = confirmed.reduce((acc, s) => acc + Number(s.ganancia || 0), 0);
+
+    document.getElementById('stat-total-sales').textContent = confirmed.length;
     document.getElementById('stat-total-revenue').textContent = `$${totalRevenue.toFixed(2)}`;
     document.getElementById('stat-total-commissions').textContent = `$${totalCommissions.toFixed(2)}`;
-    const totalProfit = salesHistory.reduce((acc, s) => acc + Number(s.ganancia || 0), 0);
     const profitEl = document.getElementById('stat-total-profit');
     if (profitEl) profitEl.textContent = `$${totalProfit.toFixed(2)}`;
+    const badge = document.getElementById('admin-pending-badge');
+    if (badge) badge.textContent = pendingCount ? `${pendingCount} pendiente(s) por revisar` : '';
 
+    // --- Resumen por afiliado ---
     const statsByCode = {};
     salesHistory.forEach(s => {
+        const st = estadoDe(s);
+        if (st === 'cancelada') return;
         if (!statsByCode[s.codigo]) {
-            statsByCode[s.codigo] = { nombre: s.nombre, count: 0, revenue: 0, commission: 0, profit: 0 };
+            statsByCode[s.codigo] = { nombre: s.nombre, count: 0, pending: 0, revenue: 0, commission: 0, unpaid: 0, profit: 0 };
         }
-        statsByCode[s.codigo].count += 1;
-        statsByCode[s.codigo].revenue += Number(s.monto_venta);
-        statsByCode[s.codigo].commission += Number(s.comision_ganada);
-        statsByCode[s.codigo].profit += Number(s.ganancia || 0);
+        const item = statsByCode[s.codigo];
+        if (st === 'pendiente') { item.pending += 1; return; }
+        item.count += 1;
+        item.revenue += Number(s.monto_venta);
+        item.commission += Number(s.comision_ganada);
+        item.profit += Number(s.ganancia || 0);
+        if (!s.comision_pagada) item.unpaid += Number(s.comision_ganada);
     });
 
     const tableBody = document.getElementById('sales-report-table');
     const keys = Object.keys(statsByCode);
 
     if (keys.length === 0) {
-        tableBody.innerHTML = `<tr><td colspan="6" class="px-6 py-10 text-center text-slate-500">No hay ventas registradas con códigos de afiliados aún.</td></tr>`;
-        return;
+        tableBody.innerHTML = `<tr><td colspan="8" class="px-6 py-10 text-center text-slate-500">No hay ventas registradas con códigos de afiliados aún.</td></tr>`;
+    } else {
+        tableBody.innerHTML = keys.map(code => {
+            const item = statsByCode[code];
+            const payBtn = item.unpaid > 0
+                ? `<button onclick="adminPayAffiliate('${escapeHtml(code)}')" class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold">Pagar todo</button>`
+                : `<span class="text-xs text-slate-500">Al día</span>`;
+            return `
+                <tr class="hover:bg-slate-800/50 transition-colors">
+                    <td class="px-6 py-4 font-mono font-bold text-white">${escapeHtml(code)}</td>
+                    <td class="px-6 py-4 text-slate-300 font-medium">${escapeHtml(item.nombre)}</td>
+                    <td class="px-6 py-4 text-slate-400 text-center">${item.count}</td>
+                    <td class="px-6 py-4 text-amber-400 text-center font-bold">${item.pending}</td>
+                    <td class="px-6 py-4 text-white font-bold">$${item.revenue.toFixed(2)}</td>
+                    <td class="px-6 py-4 text-indigo-400 font-extrabold">$${item.commission.toFixed(2)}</td>
+                    <td class="px-6 py-4 text-amber-400 font-extrabold">$${item.unpaid.toFixed(2)}</td>
+                    <td class="px-6 py-4 text-emerald-400 font-extrabold">$${item.profit.toFixed(2)}</td>
+                    <td class="px-6 py-4 text-right">${payBtn}</td>
+                </tr>
+            `;
+        }).join('');
     }
 
-    tableBody.innerHTML = keys.map(code => {
-        const item = statsByCode[code];
+    renderAdminSalesList();
+}
+
+// --- Lista de ventas con acciones (confirmar / cancelar / pagar) ---
+function renderAdminSalesList() {
+    const tbody = document.getElementById('admin-sales-list');
+    if (!tbody) return;
+    if (salesHistory.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" class="px-6 py-10 text-center text-slate-500">Aún no hay ventas.</td></tr>`;
+        return;
+    }
+    const badges = {
+        pendiente: 'bg-amber-500/10 text-amber-400',
+        confirmada: 'bg-emerald-500/10 text-emerald-400',
+        cancelada: 'bg-rose-500/10 text-rose-400'
+    };
+    const btn = (label, fn, color) => `<button onclick="${fn}" class="px-2.5 py-1 rounded-lg ${color} text-xs font-bold">${label}</button>`;
+    // Pendientes primero, luego el resto por fecha; máximo 50 filas.
+    const rows = [...salesHistory]
+        .sort((x, y) => (estadoDe(x) === 'pendiente' ? 0 : 1) - (estadoDe(y) === 'pendiente' ? 0 : 1))
+        .slice(0, 50);
+
+    tbody.innerHTML = rows.map(s => {
+        const st = estadoDe(s);
+        const id = Number(s.id);
+        let actions = '';
+        if (st === 'pendiente') {
+            actions = btn('Confirmar', `adminSetSaleStatus(${id},'confirmada')`, 'bg-emerald-600 hover:bg-emerald-500 text-white')
+                    + ' ' + btn('Cancelar', `adminSetSaleStatus(${id},'cancelada')`, 'bg-rose-600 hover:bg-rose-500 text-white');
+        } else if (st === 'confirmada') {
+            actions = (s.comision_pagada
+                ? btn('Deshacer pago', `adminSetCommissionPaid(${id},false)`, 'bg-slate-700 hover:bg-slate-600 text-slate-200')
+                : btn('Marcar pagada', `adminSetCommissionPaid(${id},true)`, 'bg-indigo-600 hover:bg-indigo-500 text-white')
+                  + ' ' + btn('Cancelar', `adminSetSaleStatus(${id},'cancelada')`, 'bg-rose-600 hover:bg-rose-500 text-white'));
+        } else {
+            actions = btn('Reabrir', `adminSetSaleStatus(${id},'pendiente')`, 'bg-slate-700 hover:bg-slate-600 text-slate-200');
+        }
+        const label = st === 'confirmada' && s.comision_pagada ? 'Pagada' : st.charAt(0).toUpperCase() + st.slice(1);
         return `
             <tr class="hover:bg-slate-800/50 transition-colors">
-                <td class="px-6 py-4 font-mono font-bold text-white">${escapeHtml(code)}</td>
-                <td class="px-6 py-4 text-slate-300 font-medium">${escapeHtml(item.nombre)}</td>
-                <td class="px-6 py-4 text-slate-400 text-center">${item.count}</td>
-                <td class="px-6 py-4 text-white font-bold">$${item.revenue.toFixed(2)}</td>
-                <td class="px-6 py-4 text-indigo-400 font-extrabold">$${item.commission.toFixed(2)}</td>
-                <td class="px-6 py-4 text-emerald-400 font-extrabold">$${item.profit.toFixed(2)}</td>
-            </tr>
-        `;
+                <td class="px-6 py-4"><span class="block font-bold text-white">#${id}</span><span class="block text-[11px] text-slate-400">${s.fecha ? new Date(s.fecha).toLocaleString() : ''}</span></td>
+                <td class="px-6 py-4 font-mono font-bold text-white">${escapeHtml(s.codigo)}</td>
+                <td class="px-6 py-4 text-slate-300">${escapeHtml(s.cliente || 'Cliente General')}</td>
+                <td class="px-6 py-4 text-white font-bold">$${Number(s.monto_venta).toFixed(2)}</td>
+                <td class="px-6 py-4 text-indigo-400 font-bold">$${Number(s.comision_ganada).toFixed(2)}</td>
+                <td class="px-6 py-4 text-center"><span class="${badges[st] || badges.pendiente} font-bold px-3 py-1 rounded-full text-xs">${label}</span></td>
+                <td class="px-6 py-4 text-right whitespace-nowrap">${actions}</td>
+            </tr>`;
     }).join('');
 }
+
+async function adminRpcAndRefresh(fn, params, okMsg) {
+    const { error } = await supabase.rpc(fn, params);
+    if (error) { alert('No se pudo completar la acción: ' + error.message); return; }
+    if (okMsg) showToast(okMsg);
+    renderAdminDashboard();
+}
+
+window.adminSetSaleStatus = function (id, estado) {
+    if (estado === 'cancelada' && !confirm('¿Cancelar esta venta? Dejará de contar para comisiones.')) return;
+    adminRpcAndRefresh('admin_set_sale_status', { p_id: id, p_estado: estado }, `Venta #${id}: ${estado}`);
+};
+window.adminSetCommissionPaid = function (id, pagada) {
+    adminRpcAndRefresh('admin_set_commission_paid', { p_id: id, p_pagada: pagada }, pagada ? 'Comisión marcada como pagada' : 'Pago deshecho');
+};
+window.adminPayAffiliate = function (codigo) {
+    if (!confirm(`¿Marcar como pagadas todas las comisiones confirmadas de ${codigo}?`)) return;
+    adminRpcAndRefresh('admin_pay_affiliate', { p_codigo: codigo }, 'Comisiones marcadas como pagadas');
+};
 
 // --- 2. GESTIÓN DE PRODUCTOS (CRUD) ---
 
@@ -1478,9 +1565,11 @@ function renderPortalDashboard(aff) {
     // (get_affiliate_sales solo devuelve filas que coinciden con su código
     // Y su PIN correcto).
     const ambassadorSales = salesHistory;
-    const totalSales = ambassadorSales.length;
-    const totalRevenue = ambassadorSales.reduce((acc, s) => acc + Number(s.monto_venta), 0);
-    const totalCommission = ambassadorSales.reduce((acc, s) => acc + Number(s.comision_ganada), 0);
+    // Solo las ventas confirmadas suman a sus totales.
+    const confirmedSales = ambassadorSales.filter(s => (s.estado || 'confirmada') === 'confirmada');
+    const totalSales = confirmedSales.length;
+    const totalRevenue = confirmedSales.reduce((acc, s) => acc + Number(s.monto_venta), 0);
+    const totalCommission = confirmedSales.reduce((acc, s) => acc + Number(s.comision_ganada), 0);
 
     document.getElementById('portal-stat-sales').textContent = totalSales;
     document.getElementById('portal-stat-revenue').textContent = `$${totalRevenue.toFixed(2)}`;
@@ -1497,6 +1586,11 @@ function renderPortalDashboard(aff) {
 
     tbody.innerHTML = ambassadorSales.map(s => {
         const dateStr = s.fecha ? new Date(s.fecha).toLocaleDateString() : 'Reciente';
+        const st = s.estado || 'confirmada';
+        const badge = st === 'pendiente' ? ['En revisión', 'bg-amber-500/10 text-amber-400']
+            : st === 'cancelada' ? ['Cancelada', 'bg-rose-500/10 text-rose-400']
+            : s.comision_pagada ? ['Pagada', 'bg-indigo-500/10 text-indigo-400']
+            : ['Confirmada', 'bg-emerald-500/10 text-emerald-400'];
         return `
             <tr class="hover:bg-slate-800/50 transition-colors">
                 <td class="px-6 py-4">
@@ -1505,9 +1599,9 @@ function renderPortalDashboard(aff) {
                 </td>
                 <td class="px-6 py-4 text-slate-300 font-medium">${escapeHtml(s.cliente || 'Cliente General')}</td>
                 <td class="px-6 py-4 text-white font-bold">$${Number(s.monto_venta).toFixed(2)}</td>
-                <td class="px-6 py-4 text-emerald-400 font-extrabold">+$${Number(s.comision_ganada).toFixed(2)}</td>
+                <td class="px-6 py-4 font-extrabold ${st === 'cancelada' ? 'text-slate-500 line-through' : st === 'pendiente' ? 'text-amber-400' : 'text-emerald-400'}">+$${Number(s.comision_ganada).toFixed(2)}</td>
                 <td class="px-6 py-4 text-center">
-                    <span class="bg-emerald-500/10 text-emerald-400 font-bold px-3 py-1 rounded-full text-xs">Completado</span>
+                    <span class="${badge[1]} font-bold px-3 py-1 rounded-full text-xs">${badge[0]}</span>
                 </td>
             </tr>
         `;

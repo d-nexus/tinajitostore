@@ -310,13 +310,41 @@
                                 <tr class="bg-slate-950 text-slate-400 uppercase text-[11px] font-bold tracking-wider border-b border-slate-800">
                                     <th class="px-6 py-4">Código</th>
                                     <th class="px-6 py-4">Afiliado</th>
-                                    <th class="px-6 py-4 text-center">Ventas</th>
+                                    <th class="px-6 py-4 text-center">Confirmadas</th>
+                                    <th class="px-6 py-4 text-center">Pendientes</th>
                                     <th class="px-6 py-4">Total Movido</th>
                                     <th class="px-6 py-4">Comisión Acumulada</th>
+                                    <th class="px-6 py-4">Por Pagar</th>
                                     <th class="px-6 py-4">Tu Ganancia</th>
+                                    <th class="px-6 py-4 text-right">Acciones</th>
                                 </tr>
                             </thead>
                             <tbody id="sales-report-table" class="divide-y divide-slate-800 text-slate-300">
+                                <!-- Inyectado por JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="bg-slate-900 rounded-3xl border border-slate-800 shadow-sm overflow-hidden">
+                    <div class="p-6 border-b border-slate-800 flex items-center justify-between">
+                        <h3 class="font-bold text-lg text-white">Ventas Recientes</h3>
+                        <span id="admin-pending-badge" class="text-xs font-bold text-amber-400"></span>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse text-sm">
+                            <thead>
+                                <tr class="bg-slate-950 text-slate-400 uppercase text-[11px] font-bold tracking-wider border-b border-slate-800">
+                                    <th class="px-6 py-4">Fecha / ID</th>
+                                    <th class="px-6 py-4">Afiliado</th>
+                                    <th class="px-6 py-4">Cliente</th>
+                                    <th class="px-6 py-4">Monto</th>
+                                    <th class="px-6 py-4">Comisión</th>
+                                    <th class="px-6 py-4 text-center">Estado</th>
+                                    <th class="px-6 py-4 text-right">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="admin-sales-list" class="divide-y divide-slate-800 text-slate-300">
                                 <!-- Inyectado por JS -->
                             </tbody>
                         </table>
