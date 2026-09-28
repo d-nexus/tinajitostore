@@ -553,14 +553,29 @@ function renderSubcategoryFilters() {
     const on = 'bg-indigo-600 text-white border border-indigo-500 shadow-md shadow-indigo-600/20';
     const off = 'bg-slate-900 text-slate-300 border border-slate-800 hover:bg-slate-800';
 
-    let html = `<a href="${escapeHtml(base)}" class="px-4 py-1.5 rounded-full text-xs font-medium transition-all shrink-0 ${active === 'all' ? on : off}">Todas</a>`;
-    html += subs.map(name => {
+    // Desktop view (pills)
+    let desktopHtml = `<div class="hidden md:flex items-center justify-center space-x-2 py-1 min-w-max">`;
+    desktopHtml += `<a href="${escapeHtml(base)}" class="px-4 py-1.5 rounded-full text-xs font-medium transition-all shrink-0 ${active === 'all' ? on : off}">Todas</a>`;
+    desktopHtml += subs.map(name => {
         const low = name.toLowerCase();
         const href = `${base}${sep}sub=${encodeURIComponent(low)}`;
         return `<a href="${escapeHtml(href)}" class="px-4 py-1.5 rounded-full text-xs font-medium transition-all shrink-0 capitalize ${active === low ? on : off}">${escapeHtml(name)}</a>`;
     }).join('');
+    desktopHtml += `</div>`;
 
-    container.innerHTML = html;
+    // Mobile view (select dropdown)
+    let mobileHtml = `<div class="block md:hidden w-full px-2 py-1">`;
+    mobileHtml += `<select onchange="if(this.value){window.location.href=this.value;}" class="w-full bg-slate-900 border border-slate-800 text-slate-200 text-xs py-2 px-3 rounded-xl focus:outline-none focus:border-indigo-500 font-medium">`;
+    mobileHtml += `<option value="${escapeHtml(base)}">📂 Todas las subcategorías</option>`;
+    mobileHtml += subs.map(name => {
+        const low = name.toLowerCase();
+        const href = `${base}${sep}sub=${encodeURIComponent(low)}`;
+        const selected = active === low ? 'selected' : '';
+        return `<option value="${escapeHtml(href)}" ${selected}>${escapeHtml(name)}</option>`;
+    }).join('');
+    mobileHtml += `</select></div>`;
+
+    container.innerHTML = desktopHtml + mobileHtml;
     bar.classList.remove('hidden');
 }
 
