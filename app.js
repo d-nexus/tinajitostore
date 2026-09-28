@@ -1609,3 +1609,27 @@ window.cerrarSesionEmbajador = function () {
         rafId = requestAnimationFrame(updateFade);
     }
 })();
+
+
+// --- MENÚ HAMBURGUESA (móvil) ---
+(function initMobileMenu() {
+    function setup() {
+        const btn = document.getElementById('menu-toggle');
+        const panel = document.getElementById('mobile-menu-panel');
+        if (!btn || !panel) return;
+        const iconOpen = document.getElementById('menu-icon-open');
+        const iconClose = document.getElementById('menu-icon-close');
+        function setOpen(open) {
+            panel.classList.toggle('hidden', !open);
+            btn.setAttribute('aria-expanded', String(open));
+            btn.setAttribute('aria-label', open ? 'Cerrar menú de categorías' : 'Abrir menú de categorías');
+            if (iconOpen) iconOpen.classList.toggle('hidden', open);
+            if (iconClose) iconClose.classList.toggle('hidden', !open);
+        }
+        btn.addEventListener('click', () => setOpen(panel.classList.contains('hidden')));
+        document.addEventListener('keydown', e => { if (e.key === 'Escape') setOpen(false); });
+        window.matchMedia('(min-width: 768px)').addEventListener('change', e => { if (e.matches) setOpen(false); });
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', setup);
+    else setup();
+})();

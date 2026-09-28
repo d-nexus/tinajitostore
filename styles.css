@@ -59,3 +59,12 @@ body {
         display: none !important;
     }
 }
+
+/* Menú móvil: categorías en lista vertical a ancho completo */
+@media (max-width: 767px) {
+    #category-filters-container .category-btn {
+        width: 100%;
+        text-align: left;
+        border-radius: 0.75rem;
+    }
+}

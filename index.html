@@ -124,6 +124,11 @@
                     <span>Carrito</span>
                     <span id="cart-count" class="absolute -top-1 -right-1 bg-rose-500 text-white text-[10px] sm:text-xs rounded-full w-4 h-4 sm:w-5 sm:h-5 flex items-center justify-center font-bold shadow-sm hidden">0</span>
                 </button>
+                <!-- Botón menú hamburguesa (solo móvil) -->
+                <button id="menu-toggle" type="button" aria-label="Abrir menú de categorías" aria-expanded="false" aria-controls="mobile-menu-panel" class="md:hidden inline-flex items-center justify-center w-9 h-9 rounded-full bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 transition-all">
+                    <svg id="menu-icon-open" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+                    <svg id="menu-icon-close" class="w-5 h-5 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
             </div>
         </div>
 
@@ -140,8 +145,8 @@
         </div>
 
         <!-- Filtros por Categoría (Menú de Navegación Principal) -->
-        <div class="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 pb-2.5 pt-1 border-t border-slate-800/80 overflow-x-auto">
-            <div id="category-filters-container" class="flex items-center justify-start sm:justify-center space-x-2 py-1 min-w-max">
+        <div id="mobile-menu-panel" class="hidden md:block max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 pb-2.5 pt-1 border-t border-slate-800/80 md:overflow-x-auto">
+            <div id="category-filters-container" class="flex flex-col md:flex-row items-stretch md:items-center justify-start md:justify-center gap-2 py-1 md:min-w-max">
                 <!-- Inyectado por JS -->
             </div>
         </div>
