@@ -549,3 +549,38 @@ end;
 $$;
 revoke execute on function admin_save_product(bigint, text, text, numeric, numeric, text, text, text, numeric, numeric, numeric, text, text) from public;
 grant execute on function admin_save_product(bigint, text, text, numeric, numeric, text, text, text, numeric, numeric, numeric, text, text) to authenticated;
+
+-- =====================================================================
+-- MIGRACIÓN: soporte de moneda (CUP / USD) por producto y afiliados
+-- =====================================================================
+alter table products add column if not exists moneda text not null default 'CUP';
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'products_moneda_check') then
+    alter table products add constraint products_moneda_check check (moneda in ('CUP', 'USD'));
+  end if;
+end $$;
+
+create or replace function get_affiliate_sales_currency(p_codigo text, p_pin text)
+returns table(id bigint, moneda text)
+language plpgsql
+security definer
+set search_path = public, extensions
+as $$
+begin
+    if not exists (
+        select 1 from affiliates a
+        where upper(a.codigo) = upper(p_codigo) and a.pin_hash = crypt(p_pin, a.pin_hash)
+    ) then
+        raise exception 'Código o PIN incorrectos';
+    end if;
+
+    return query
+    select s.id, (case when s.order_ref ~* '-USD$' then 'USD' else 'CUP' end)::text
+    from sales s
+    where upper(s.codigo) = upper(p_codigo);
+end;
+$$;
+revoke execute on function get_affiliate_sales_currency(text, text) from public;
+grant execute on function get_affiliate_sales_currency(text, text) to anon, authenticated;

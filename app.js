@@ -26,6 +26,24 @@ function escapeHtml(value) {
     }[ch]));
 }
 
+// --- OPTIMIZACIÓN DE IMÁGENES (Responsive srcset, WebP auto y dimensiones) ---
+function getResponsiveImageAttrs(imageUrl, widthPx = 600) {
+    const esc = escapeHtml(imageUrl);
+    if (imageUrl && imageUrl.includes('images.unsplash.com')) {
+        const baseUrl = imageUrl.split('?')[0];
+        return {
+            src: `${baseUrl}?auto=format&fit=crop&w=${widthPx}&q=80`,
+            srcset: `${baseUrl}?auto=format&fit=crop&w=480&q=80 480w, ${baseUrl}?auto=format&fit=crop&w=800&q=80 800w, ${baseUrl}?auto=format&fit=crop&w=1200&q=80 1200w`,
+            sizes: '(max-width: 640px) 480px, (max-width: 1024px) 800px, 1200px'
+        };
+    }
+    return {
+        src: esc,
+        srcset: '',
+        sizes: ''
+    };
+}
+
 // --- ESTADO LOCAL ---
 // A partir de este rediseño, localStorage SOLO guarda cosas propias y no
 // sensibles del visitante en su propio navegador (su carrito, el código de
@@ -680,10 +698,11 @@ function renderProducts(productsToRender) {
     grid.innerHTML = productsToRender.map(product => {
         const soldOut = isSoldOut(product);
         const lowStock = !soldOut && product.stock !== null && product.stock !== undefined && product.stock <= LOW_STOCK_THRESHOLD;
+        const imgAttrs = getResponsiveImageAttrs(product.image, 600);
         return `
         <div class="bg-slate-900 rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 overflow-hidden flex flex-col group border border-slate-800 hover:border-slate-700">
             <div class="relative overflow-hidden bg-slate-950 aspect-square">
-                <img src="${escapeHtml(product.image)}" alt="${escapeHtml(product.name)}" loading="lazy" class="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-500 ${soldOut ? 'grayscale opacity-60' : ''}" onerror="this.src='https://images.unsplash.com/photo-1584438784894-089d6a62b8fa?auto=format&fit=crop&w=600&q=80'">
+                <img src="${imgAttrs.src}" ${imgAttrs.srcset ? `srcset="${imgAttrs.srcset}" sizes="${imgAttrs.sizes}"` : ''} alt="${escapeHtml(product.name)}" width="300" height="300" loading="lazy" decoding="async" class="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-500 ${soldOut ? 'grayscale opacity-60' : ''}" onerror="this.src='https://images.unsplash.com/photo-1584438784894-089d6a62b8fa?auto=format&fit=crop&w=600&q=80'">
                 ${soldOut ? `<span class="absolute top-3 left-3 bg-rose-600 text-white text-xs font-bold px-3 py-1 rounded-full shadow-md shadow-rose-600/30">Agotado</span>` : (product.badge ? `<span class="absolute top-3 left-3 bg-emerald-600 text-white text-xs font-semibold px-3 py-1 rounded-full shadow-md shadow-emerald-600/30">${escapeHtml(product.badge)}</span>` : '')}
                 ${lowStock ? `<span class="absolute bottom-3 left-3 bg-amber-500 text-slate-950 text-[11px] font-bold px-2.5 py-1 rounded-full">¡Últimas ${product.stock}!</span>` : ''}
                 <div class="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
@@ -909,9 +928,11 @@ function updateCartUI() {
         emptyMsg.classList.add('hidden');
         footer.classList.remove('hidden');
 
-        itemsContainer.innerHTML = cart.map(item => `
+        itemsContainer.innerHTML = cart.map(item => {
+            const cartImgAttrs = getResponsiveImageAttrs(item.image, 120);
+            return `
             <div class="flex items-center space-x-3.5 bg-slate-950/60 p-3.5 rounded-2xl border border-slate-800">
-                <img src="${escapeHtml(item.image)}" alt="${escapeHtml(item.name)}" loading="lazy" class="w-16 h-16 object-cover rounded-xl bg-slate-900 shadow-xs border border-slate-800" onerror="this.src='https://images.unsplash.com/photo-1584438784894-089d6a62b8fa?auto=format&fit=crop&w=600&q=80'">
+                <img src="${cartImgAttrs.src}" ${cartImgAttrs.srcset ? `srcset="${cartImgAttrs.srcset}" sizes="${cartImgAttrs.sizes}"` : ''} alt="${escapeHtml(item.name)}" width="64" height="64" loading="lazy" decoding="async" class="w-16 h-16 object-cover rounded-xl bg-slate-900 shadow-xs border border-slate-800" onerror="this.src='https://images.unsplash.com/photo-1584438784894-089d6a62b8fa?auto=format&fit=crop&w=600&q=80'">
                 <div class="flex-1 min-w-0">
                     <h4 class="font-semibold text-white text-xs truncate">${escapeHtml(item.name)}</h4>
                     <p class="text-emerald-400 font-bold text-xs mt-0.5">${priceHtml(item.price, cartItemCurrency(item))}</p>
@@ -1755,7 +1776,10 @@ async function renderAdminProducts() {
         return `
         <tr class="hover:bg-slate-800/50 transition-colors">
             <td class="px-6 py-4">
-                <img src="${escapeHtml(p.image)}" loading="lazy" class="w-12 h-12 object-cover rounded-xl bg-slate-950 border border-slate-800" onerror="this.src='https://images.unsplash.com/photo-1584438784894-089d6a62b8fa?auto=format&fit=crop&w=600&q=80'">
+                ${(() => {
+                    const adminImgAttrs = getResponsiveImageAttrs(p.image, 96);
+                    return `<img src="${adminImgAttrs.src}" ${adminImgAttrs.srcset ? `srcset="${adminImgAttrs.srcset}" sizes="${adminImgAttrs.sizes}"` : ''} alt="${escapeHtml(p.name)}" width="48" height="48" loading="lazy" decoding="async" class="w-12 h-12 object-cover rounded-xl bg-slate-950 border border-slate-800" onerror="this.src='https://images.unsplash.com/photo-1584438784894-089d6a62b8fa?auto=format&fit=crop&w=600&q=80'">`;
+                })()}
             </td>
             <td class="px-6 py-4 font-bold text-white">${escapeHtml(p.name)}</td>
             <td class="px-6 py-4"><span class="bg-indigo-500/10 text-indigo-400 font-semibold px-2.5 py-1 rounded-lg text-xs capitalize">${escapeHtml(p.category)}</span>${p.subcategory ? `<span class="block text-[11px] text-slate-500 mt-1 capitalize">${escapeHtml(p.subcategory)}</span>` : ''}</td>
@@ -2336,7 +2360,7 @@ function initPortalView() {
     if (pinInput) pinInput.value = '';
 }
 
-function portalSaleCurrency(s) { return s._moneda === 'USD' ? 'USD' : saleCurrency(s); }
+function portalSaleCurrency(s) { return (s.moneda === 'USD' || s._moneda === 'USD') ? 'USD' : saleCurrency(s); }
 
 function renderPortalDashboard(aff) {
     const initials = aff.nombre.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
@@ -2359,8 +2383,8 @@ function renderPortalDashboard(aff) {
     };
     const setMoneyLines = (id, byCur) => {
         const el = document.getElementById(id);
-        const curs = CURRENCY_ORDER.filter(c => byCur[c] !== undefined);
-        el.innerHTML = (curs.length ? curs : ['CUP']).map(c => `<span class="block">${escapeHtml(fmtMoney(byCur[c] || 0, c))}</span>`).join('');
+        // Siempre se muestran ambas monedas (USD primero), aunque una esté en 0.
+        el.innerHTML = CURRENCY_ORDER.map(c => `<span class="block">${escapeHtml(fmtMoney(byCur[c] || 0, c))}</span>`).join('');
     };
 
     document.getElementById('portal-stat-sales').textContent = totalSales;
@@ -2425,10 +2449,12 @@ window.consultarEstadisticasAfiliado = async function () {
     currentAmbassador = socio;
 
     const { data: sales, error: salesErr } = await supabase.rpc('get_affiliate_sales', { p_codigo: codigoInput, p_pin: pinInput });
+    if (salesErr) console.warn('get_affiliate_sales falló:', salesErr.message);
     salesHistory = salesErr ? [] : (sales || []);
     // Moneda de cada venta (función opcional de migracion-moneda.sql). Si no existe, se deduce de order_ref o queda en CUP.
     try {
         const { data: curRows, error: curErr } = await supabase.rpc('get_affiliate_sales_currency', { p_codigo: codigoInput, p_pin: pinInput });
+        if (curErr) console.warn('get_affiliate_sales_currency falló (las ventas en USD se verán como CUP):', curErr.message);
         if (!curErr && Array.isArray(curRows)) {
             const byId = new Map(curRows.map(r => [Number(r.id), r.moneda]));
             salesHistory.forEach(s => { if (byId.has(Number(s.id))) s._moneda = byId.get(Number(s.id)); });
