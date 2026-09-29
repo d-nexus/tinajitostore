@@ -861,15 +861,16 @@
                 </div>
                 <div class="grid grid-cols-2 gap-4">
                     <div>
-                        <label class="block text-xs font-semibold text-slate-400 uppercase mb-1">Desc. al cliente ($)</label>
-                        <input type="number" step="0.01" min="0" id="aff-discount" value="0" required class="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-sm text-slate-100 focus:outline-none focus:border-emerald-500 font-medium">
+                        <label class="block text-xs font-semibold text-slate-400 uppercase mb-1">Desc. al cliente (%)</label>
+                        <input type="number" step="0.01" min="0" id="aff-discount" max="100" value="0" required class="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-sm text-slate-100 focus:outline-none focus:border-emerald-500 font-medium">
                     </div>
                     <div>
-                        <label class="block text-xs font-semibold text-slate-400 uppercase mb-1">Comisión afiliado ($)</label>
-                        <input type="number" step="0.01" min="0" id="aff-commission" value="0" required class="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-sm text-slate-100 focus:outline-none focus:border-emerald-500 font-medium">
+                        <label class="block text-xs font-semibold text-slate-400 uppercase mb-1">Comisión (% de tu ganancia)</label>
+                        <input type="number" step="0.01" min="0" id="aff-commission" max="100" value="0" required class="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-sm text-slate-100 focus:outline-none focus:border-emerald-500 font-medium">
                     </div>
                 </div>
-                <p class="text-[11px] text-slate-500 -mt-2 leading-relaxed">Montos fijos en pesos por pedido: lo que se descuenta al cliente y lo que gana el afiliado cada vez que se compra con su código.</p>
+                <p class="text-[11px] text-slate-500 -mt-2 leading-relaxed">Descuento: % del subtotal que se le quita al cliente. Comisión: % de tu ganancia de la venta (ya con el descuento) que se lleva el afiliado.</p>
+                <p id="aff-warning" class="text-[11px] text-slate-400 leading-relaxed"></p>
                 <div>
                     <label class="block text-xs font-semibold text-slate-400 uppercase mb-1">Código de Acceso / PIN Secreto</label>
                     <input type="text" id="aff-pin" required placeholder="Ej. 1234" class="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-sm text-slate-100 focus:outline-none focus:border-emerald-500 font-medium">

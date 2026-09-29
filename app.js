@@ -227,12 +227,13 @@ async function fetchPublicAffiliate(codigo) {
     }
 }
 
-// Descuento del carrito: un monto FIJO por pedido, definido en cada afiliado
-// (nunca más que el subtotal). Solo es para mostrarlo; el servidor lo recalcula.
+// Descuento del carrito: un PORCENTAJE del subtotal, definido en cada afiliado
+// (0-100). Solo es para mostrarlo; el servidor lo recalcula al registrar la venta.
 function getCartDiscount() {
     if (!activeAffiliate) return 0;
     const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
-    return Math.min(Number(activeAffiliate.descuento || 0), subtotal);
+    const pct = Math.min(100, Math.max(0, Number(activeAffiliate.descuento || 0)));
+    return Math.round(subtotal * pct) / 100;
 }
 
 // --- CONFIGURACIÓN DE EVENTOS GLOBALES ---
@@ -821,7 +822,7 @@ function updateCartUI() {
     if (activeAffiliate) {
         discountAmount = getCartDiscount();
         discountRow.classList.remove('hidden');
-        discountLabel.textContent = `Descuento (${activeAffiliate.codigo})`;
+        discountLabel.textContent = `Descuento (${activeAffiliate.codigo} · ${Number(activeAffiliate.descuento || 0)}%)`;
         cartDiscountEl.textContent = `-$${discountAmount.toFixed(2)}`;
 
         const input = document.getElementById('affiliate-input');
@@ -919,7 +920,7 @@ async function sendWhatsAppOrder(e) {
 
         // El registro real de la venta y su comisión ocurre en el servidor
         // (record_sale), que vuelve a calcular todo con los precios y el %
-        // guardados en la base de datos (descuento y comisión fijos por afiliado): el navegador no puede inflar esto.
+        // guardados en la base de datos (descuento y comisión en % por afiliado): el navegador no puede inflar esto.
         const { error } = await supabase.rpc('record_sale', {
             p_codigo: activeAffiliate.codigo,
             p_cliente: name || 'Cliente General',
@@ -1671,8 +1672,8 @@ async function renderAdminAffiliates() {
         <tr class="hover:bg-slate-800/50 transition-colors">
             <td class="px-6 py-4 font-mono font-extrabold text-white">${escapeHtml(a.codigo)}</td>
             <td class="px-6 py-4 font-semibold text-slate-200">${escapeHtml(a.nombre)}</td>
-            <td class="px-6 py-4 font-bold text-emerald-400">$${Number(a.descuento || 0).toFixed(2)}</td>
-            <td class="px-6 py-4 font-bold text-indigo-400">$${Number(a.comision || 0).toFixed(2)}</td>
+            <td class="px-6 py-4 font-bold text-emerald-400">${Number(a.descuento || 0)}%</td>
+            <td class="px-6 py-4 font-bold text-indigo-400">${Number(a.comision || 0)}%</td>
             <td class="px-6 py-4 text-right space-x-2">
                 <button onclick="openAffiliateModal(${a.id})" class="text-indigo-400 hover:text-indigo-300 font-semibold text-xs bg-indigo-500/10 hover:bg-indigo-500/20 px-3 py-1.5 rounded-lg transition-colors">Editar</button>
                 <button onclick="deleteAffiliate(${a.id})" class="text-rose-400 hover:text-rose-300 font-semibold text-xs bg-rose-500/10 hover:bg-rose-500/20 px-3 py-1.5 rounded-lg transition-colors">Eliminar</button>
@@ -1721,6 +1722,39 @@ function openAffiliateModal(id = null) {
         modal.classList.remove('hidden');
         modal.classList.add('flex');
     }
+
+    const discInput = document.getElementById('aff-discount');
+    discInput.oninput = updateAffiliateWarning;
+    updateAffiliateWarning();
+}
+
+// Aviso en vivo: el descuento (%) se aplica sobre el precio, así que si supera el
+// margen de algún producto se vendería por debajo del costo. La comisión no puede
+// causar pérdida porque se calcula sobre tu ganancia.
+async function updateAffiliateWarning() {
+    const el = document.getElementById('aff-warning');
+    if (!el) return;
+    if (Object.keys(productSuppliers).length === 0) await loadProductSuppliers();
+
+    const d = parseFloat(document.getElementById('aff-discount').value) || 0;
+    let maxSafe = 100, tightest = null;
+    const risky = [];
+    products.forEach(p => {
+        const sup = productSuppliers[p.id];
+        if (!sup || sup.costo === null || sup.costo === undefined || !(p.price > 0)) return;
+        const margenPct = (p.price - Number(sup.costo)) / p.price * 100;
+        if (margenPct < maxSafe) { maxSafe = margenPct; tightest = p.name; }
+        if (d > margenPct) risky.push(p.name);
+    });
+
+    if (!tightest) { el.innerHTML = ''; return; }
+    const safeTxt = `Descuento máximo sin perder dinero en todo el catálogo: <strong>${Math.max(0, maxSafe).toFixed(1)}%</strong> (menor margen: ${escapeHtml(tightest)}).`;
+    if (risky.length > 0) {
+        const list = risky.slice(0, 3).map(escapeHtml).join(', ') + (risky.length > 3 ? ` y ${risky.length - 3} más` : '');
+        el.innerHTML = `<span class="text-rose-400">⚠ Con ${d}% perderías dinero en: ${list}.</span><br>${safeTxt}`;
+    } else {
+        el.innerHTML = safeTxt;
+    }
 }
 
 function closeAffiliateModal() {
@@ -1736,8 +1770,8 @@ async function handleSaveAffiliate(e) {
     const descuento = parseFloat(document.getElementById('aff-discount').value) || 0;
     const comision = parseFloat(document.getElementById('aff-commission').value) || 0;
 
-    if (descuento < 0 || comision < 0) {
-        alert('El descuento y la comisión no pueden ser negativos.');
+    if (descuento < 0 || descuento > 100 || comision < 0 || comision > 100) {
+        alert('El descuento y la comisión deben ser porcentajes entre 0 y 100.');
         return;
     }
 
