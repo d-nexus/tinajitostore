@@ -934,26 +934,7 @@ async function sendWhatsAppOrder(e) {
     // Referencia única del pedido: viaja en el mensaje de WhatsApp Y se guarda
     // en la tabla "sales", así puedes cruzar el chat con el registro.
     const orderRef = buildOrderReference();
-
-    // Registro del pedido (con o sin afiliado). Se guarda como "pendiente";
-    // tú lo pasas a "confirmada" o "cancelada" desde el panel admin.
-    // El servidor recalcula precios, descuento y comisión: el navegador no puede inflarlos.
-    const salePayload = {
-        p_codigo: activeAffiliate ? activeAffiliate.codigo : null,
-        p_cliente: name || 'Cliente General',
-        p_items: cart.map(item => ({ id: item.id, quantity: item.quantity })),
-        p_order_ref: orderRef,
-        p_telefono: phone,
-        p_direccion: address,
-        p_pago: payment
-    };
-    // Se lanza ANTES de abrir WhatsApp pero sin "await": si esperáramos aquí,
-    // Safari/iOS y otros navegadores bloquean window.open por perder el gesto
-    // del clic. La petición sigue viva porque esta página no se cierra.
-    const salePromise = submitSaleWithRetry(salePayload);
-
     const finalTotal = Math.max(0, subtotal - discountAmount);
-
     const itemsCount = cart.reduce((acc, item) => acc + item.quantity, 0);
 
     const message = `🛍️ *NUEVO PEDIDO — TINAJITOSTORE*\n` +
@@ -972,13 +953,23 @@ async function sendWhatsAppOrder(e) {
 
     const whatsappUrl = `https://wa.me/${STORE_WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`;
 
-    // 1) WhatsApp se abre PRIMERO, en el mismo instante del toque. En móvil, cualquier
-    //    trabajo previo que falle o tarde puede hacer que el navegador lo bloquee.
-    let waWindow = null;
-    try { waWindow = window.open(whatsappUrl, '_blank'); } catch (err) { console.error('window.open falló:', err); }
-    const blocked = !waWindow || waWindow.closed;
+    // Registro del pedido en Supabase o cola de reintento
+    const salePayload = {
+        p_codigo: activeAffiliate ? activeAffiliate.codigo : null,
+        p_cliente: name || 'Cliente General',
+        p_items: cart.map(item => ({ id: item.id, quantity: item.quantity })),
+        p_order_ref: orderRef,
+        p_telefono: phone,
+        p_direccion: address,
+        p_pago: payment
+    };
 
-    // 2) Limpieza de la interfaz. Va en try/catch: si algo aquí fallara, el pedido igual ya salió.
+    // 1) Primero procesar la orden de forma limpia (registro en Supabase, vaciar carrito, cerrar modales)
+    const saleOk = await submitSaleWithRetry(salePayload);
+    if (!saleOk) {
+        showToast('El pedido se procesó localmente, pero hubo un problema al sincronizar con el servidor. Se reintentará.');
+    }
+
     try {
         document.getElementById('checkout-modal').classList.add('hidden');
         document.getElementById('checkout-modal').classList.remove('flex');
@@ -997,14 +988,16 @@ async function sendWhatsAppOrder(e) {
         console.error('Error limpiando la interfaz tras el pedido:', err);
     }
 
-    // 3) Pantalla de confirmación con un enlace real a WhatsApp: si el navegador bloqueó
-    //    la ventana (Safari/iOS, navegadores integrados de Instagram/Facebook/WhatsApp...),
-    //    el cliente lo abre con un toque, que siempre funciona.
-    showOrderConfirmation(orderRef, whatsappUrl, blocked);
-
-    salePromise.then(ok => {
-        if (!ok) showToast('El pedido salió por WhatsApp, pero no se pudo registrar en el sistema. Se reintentará automáticamente.');
-    });
+    // 2) Disparar la redirección de forma segura para cualquier dispositivo
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    if (isMobile) {
+        window.location.href = whatsappUrl;
+    } else {
+        let waWindow = null;
+        try { waWindow = window.open(whatsappUrl, '_blank'); } catch (err) { console.error('window.open falló:', err); }
+        const blocked = !waWindow || waWindow.closed;
+        showOrderConfirmation(orderRef, whatsappUrl, blocked);
+    }
 }
 
 // --- REGISTRO DE PEDIDOS CON REINTENTO ---
