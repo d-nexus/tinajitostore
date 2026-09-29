@@ -72,3 +72,24 @@ body {
         border-radius: 0.75rem;
     }
 }
+
+/* Menú de categorías en escritorio: centrado, en varias filas si hace falta,
+   sin barra de scroll horizontal. En móvil se mantiene la lista vertical. */
+@media (min-width: 768px) {
+    #mobile-menu-panel {
+        overflow: visible !important;
+    }
+    #category-filters-container {
+        flex-wrap: wrap !important;
+        justify-content: center !important;
+        min-width: 0 !important;
+        max-width: 64rem;
+        margin: 0 auto;
+        gap: 0.5rem 0.6rem !important;
+        padding: 0.4rem 0 !important;
+    }
+    #category-filters-container .category-btn {
+        padding: 0.45rem 1rem;
+        white-space: nowrap;
+    }
+}
