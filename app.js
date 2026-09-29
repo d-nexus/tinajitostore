@@ -478,12 +478,13 @@ async function switchView(view) {
 //  2) Si no, y la página es una de las 4 con archivo propio, se usa su nombre.
 //  3) Si no, "all" (index.html).
 const pathName = window.location.pathname.split('/').pop().toLowerCase();
-const KNOWN_CATEGORY_PAGES = ['accesorios', 'audio', 'moda', 'tecnologia'];
+// Mapa { 'nombre categoría en minúsculas': 'archivo.html' }. Lo rellena solo generar-seo.py.
+const KNOWN_CATEGORY_PAGES = {"⚡ energía y movilidad": "energia-y-movilidad.html", "🏡 hogar y utilidades": "hogar-y-utilidades.html", "👗 moda y ropa": "moda-y-ropa.html", "💻 tecnología y electrónica": "tecnologia-y-electronica.html", "🧴 cuidado personal y bienestar": "cuidado-personal-y-bienestar.html", "🛒 alimentos y víveres": "alimentos-y-viveres.html"};
 const urlCatParam = (new URLSearchParams(window.location.search).get('cat') || '').trim().toLowerCase();
 let initialCategoryFilter = 'all';
 if (urlCatParam) initialCategoryFilter = urlCatParam;
 else {
-    const known = KNOWN_CATEGORY_PAGES.find(c => pathName === c + '.html');
+    const known = Object.keys(KNOWN_CATEGORY_PAGES).find(c => KNOWN_CATEGORY_PAGES[c] === pathName);
     if (known) initialCategoryFilter = known;
 }
 
@@ -513,10 +514,9 @@ function renderCategoryFilters() {
 
     html += categories.map(cat => {
         const lowerCat = cat.toLowerCase();
-        // Las 4 categorías originales tienen su propia página (mejor para SEO).
-        // Cualquier categoría nueva usa index.html?cat=nombre, sin crear archivos.
-        const isKnown = KNOWN_CATEGORY_PAGES.includes(lowerCat);
-        const href = isKnown ? `${lowerCat}.html` : `index.html?cat=${encodeURIComponent(lowerCat)}`;
+        // Las categorías con página propia (generadas por generar-seo.py) enlazan a su .html;
+        // el resto usa index.html?cat=nombre.
+        const href = KNOWN_CATEGORY_PAGES[lowerCat] || `index.html?cat=${encodeURIComponent(lowerCat)}`;
         const isActive = currentCategoryFilter === lowerCat;
         return `
             <a href="${href}" class="category-filter-btn category-btn px-5 py-2 rounded-full text-xs sm:text-sm font-medium transition-all shrink-0 capitalize ${isActive ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-md shadow-emerald-600/30 border border-emerald-500' : 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20'}">
@@ -553,7 +553,7 @@ function renderSubcategoryFilters() {
     }
 
     const cat = currentCategoryFilter;
-    const base = KNOWN_CATEGORY_PAGES.includes(cat) ? `${cat}.html` : `index.html?cat=${encodeURIComponent(cat)}`;
+    const base = KNOWN_CATEGORY_PAGES[cat] || `index.html?cat=${encodeURIComponent(cat)}`;
     const sep = base.includes('?') ? '&' : '?';
     const active = getActiveSub();
     const on = 'bg-indigo-600 text-white border border-indigo-500 shadow-md shadow-indigo-600/20';
