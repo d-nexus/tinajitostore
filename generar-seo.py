@@ -39,6 +39,10 @@ def fetch(table, select):
     with urllib.request.urlopen(req, timeout=30) as r:
         return json.load(r)
 
+def disp_name(n):
+    n = re.sub(r"^[^\w]+", "", n.strip())   # quita emojis del inicio
+    return n[:1].upper() + n[1:]
+
 def human_list(names):
     names = [n.lower() for n in names]
     return names[0] if len(names) == 1 else ", ".join(names[:-1]) + " y " + names[-1]
@@ -64,7 +68,7 @@ def main():
 
     # 1) páginas de categoría
     for name, fname in pages.items():
-        disp = name[:1].upper() + name[1:]
+        disp = disp_name(name)
         items = [x["name"] for x in prods if (x.get("category") or "").lower() == name.lower()][:60]
         plist = ("<ul>" + "".join(f"<li>{esc(i)}</li>" for i in items) + "</ul>") if items else ""
         desc = f"{disp} en TinajitoStore: mira el catálogo, usa códigos de descuento de afiliados y pide por WhatsApp en Camagüey."
@@ -89,10 +93,10 @@ def main():
 
     # 4) index.html: descripción y enlaces rastreables a cada categoría
     idx = read("index.html")
-    d = f"TinajitoStore: bazar online de {human_list(list(pages))} y más en Camagüey. Pide por WhatsApp y usa códigos de descuento de nuestros embajadores."
+    d = f"TinajitoStore: bazar online de {human_list([disp_name(k) for k in pages])} y más en Camagüey. Pide por WhatsApp y usa códigos de descuento de nuestros embajadores."
     idx = re.sub(r'(<meta name="description" content=")[^"]*(")', lambda m: m.group(1) + esc(d) + m.group(2), idx, count=1)
     idx = re.sub(r'("description": ")[^"]*(")', lambda m: m.group(1) + d.replace('"', "'") + m.group(2), idx, count=1)
-    links = ", ".join(f'<a href="{f}" style="color:#34d399">{esc(n[:1].upper() + n[1:])}</a>' for n, f in pages.items())
+    links = ", ".join(f'<a href="{f}" style="color:#34d399">{esc(disp_name(n))}</a>' for n, f in pages.items())
     idx = re.sub(r"<!--SEO-START-->.*?<!--SEO-END-->", lambda m: f"<!--SEO-START--><p>Categorías: {links}.</p><!--SEO-END-->", idx, flags=re.S)
     write("index.html", idx)
 

@@ -503,6 +503,9 @@ function initStoreView() {
     }
 }
 
+// Solo la primera letra (ignorando emojis) va en mayúscula.
+function prettyCat(c) { return String(c).replace(/\p{L}/u, ch => ch.toUpperCase()); }
+
 function renderCategoryFilters() {
     const container = document.getElementById('category-filters-container');
     if (!container) return;
@@ -519,8 +522,8 @@ function renderCategoryFilters() {
         const href = KNOWN_CATEGORY_PAGES[lowerCat] || `index.html?cat=${encodeURIComponent(lowerCat)}`;
         const isActive = currentCategoryFilter === lowerCat;
         return `
-            <a href="${href}" class="category-filter-btn category-btn px-5 py-2 rounded-full text-xs sm:text-sm font-medium transition-all shrink-0 capitalize ${isActive ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-md shadow-emerald-600/30 border border-emerald-500' : 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20'}">
-                ${escapeHtml(cat)}
+            <a href="${href}" class="category-filter-btn category-btn px-5 py-2 rounded-full text-xs sm:text-sm font-medium transition-all shrink-0 ${isActive ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-md shadow-emerald-600/30 border border-emerald-500' : 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20'}">
+                ${escapeHtml(prettyCat(cat))}
             </a>
         `;
     }).join('');
