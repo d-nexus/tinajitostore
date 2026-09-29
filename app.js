@@ -283,6 +283,8 @@ function setupGlobalEvents() {
     document.getElementById('close-checkout-btn').addEventListener('click', () => {
         document.getElementById('checkout-modal').classList.add('hidden');
         document.getElementById('checkout-modal').classList.remove('flex');
+        clearActiveAffiliate(); // se canceló la compra: no dejar el código aplicado
+        updateCartUI();
     });
 
     document.getElementById('checkout-form').addEventListener('submit', sendWhatsAppOrder);
@@ -752,6 +754,17 @@ function toggleCart() {
     }
 }
 
+// Limpia el código de afiliado activo (se llama al completar o cancelar
+// una compra, para que no quede "pegado" a la siguiente visita/carrito).
+function clearActiveAffiliate() {
+    activeAffiliate = null;
+    setStorage('active_affiliate', null);
+    const input = document.getElementById('affiliate-input');
+    const feedback = document.getElementById('affiliate-feedback');
+    if (input) input.value = '';
+    if (feedback) feedback.classList.add('hidden');
+}
+
 // Aplicar Afiliado (consulta pública: solo código y nombre)
 async function applyAffiliateFromInput() {
     const code = document.getElementById('affiliate-input').value.toUpperCase().trim();
@@ -940,8 +953,10 @@ async function sendWhatsAppOrder(e) {
 
     // El carrito se vacía porque el pedido ya quedó armado en el mensaje;
     // si el cliente vuelve, no debería reencontrarse el mismo pedido "a medias".
+    // El código de afiliado tampoco debe seguir aplicado a la siguiente compra.
     cart = [];
     setStorage('cart', cart);
+    clearActiveAffiliate();
     updateCartUI();
     toggleCart(); // cierra el panel del carrito si estaba abierto
 
@@ -1907,6 +1922,18 @@ window.cerrarSesionEmbajador = function () {
     function startLoading() {
         if (started) return;
         started = true;
+
+        // Red de seguridad: si el mp4 falla (ruta incorrecta, 404, o el
+        // navegador nunca dispara "canplaythrough"), el <video> se queda
+        // con opacity-0 para siempre y no se ve ni el poster. Estos
+        // listeners garantizan que, pase lo que pase, la capa se revele.
+        const reveal = () => video.classList.remove('opacity-0');
+        video.addEventListener('canplaythrough', reveal, { once: true });
+        video.addEventListener('loadeddata', reveal, { once: true });
+        video.addEventListener('error', reveal, { once: true });
+        source.addEventListener('error', reveal, { once: true });
+        setTimeout(reveal, 4000); // último recurso si ningún evento llegó a disparar
+
         source.src = source.dataset.src;
         video.load();
         shouldBePlaying = true;
