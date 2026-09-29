@@ -53,7 +53,7 @@
     
     <main class="flex-1 max-w-3xl mx-auto w-full px-4 sm:px-6 py-10">
         <h1 class="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">Política de Privacidad</h1>
-        <p class="text-sm text-slate-500 mt-2">28 de Septiembre de 2026 </p>
+        <p class="text-sm text-slate-500 mt-2">Última actualización: 29 de septiembre de 2026</p>
 
         <article class="prose-legal mt-8 space-y-8 text-slate-300 leading-relaxed">
 
@@ -70,10 +70,10 @@
             <section>
                 <h2>2. Qué datos recopilamos</h2>
                 <ul>
-                    <li><strong>Al hacer un pedido:</strong> nombre, número de teléfono, dirección de entrega y forma de pago elegida.</li>
+                    <li><strong>Al hacer un pedido:</strong> nombre, número de teléfono, dirección de entrega, forma de pago elegida y el detalle de los productos pedidos. Cada pedido se guarda con una referencia (TJ-AAMMDD-XXXX) y un estado (pendiente, confirmado o cancelado), aunque no uses código de afiliado.</li>
                     <li><strong>Al usar un código de afiliado:</strong> el código y, si aplica, el nombre asociado a ese código.</li>
                     <li><strong>Si te registras como afiliado:</strong> tu nombre, un código único y un PIN de acceso. El PIN nunca se guarda como texto: se guarda cifrado (hash), de forma que ni siquiera el administrador del sitio puede verlo.</li>
-                    <li><strong>Datos técnicos básicos del navegador</strong> (como el carrito de compra y el código de afiliado activo) guardados únicamente en tu propio dispositivo, no en nuestros servidores.</li>
+                    <li><strong>Datos técnicos básicos del navegador</strong> (como el carrito de compra y el código de afiliado activo) guardados únicamente en tu propio dispositivo, no en nuestros servidores. Si falla la conexión al enviar un pedido, se guarda allí una copia temporal para reintentar el registro y se elimina cuando el pedido queda registrado.</li>
                 </ul>
                 <p>No recopilamos datos de pago (números de tarjeta, cuentas bancarias) a través del sitio: eso se coordina directamente por WhatsApp.</p>
             </section>
@@ -82,6 +82,7 @@
                 <h2>3. Para qué usamos tus datos</h2>
                 <ul>
                     <li>Armar y enviar tu pedido por WhatsApp a nuestro número de contacto.</li>
+                    <li>Registrar cada pedido en nuestro sistema para darle seguimiento (confirmarlo o cancelarlo) y llevar el control de ventas.</li>
                     <li>Aplicar el descuento del afiliado que hayas usado y, si corresponde, calcular su comisión.</li>
                     <li>Llevar el registro interno de ventas para fines administrativos y contables del negocio.</li>
                 </ul>
@@ -91,12 +92,13 @@
             <section>
                 <h2>4. Dónde se guardan tus datos</h2>
                 <p>
-                    El catálogo, los afiliados y el historial de ventas se guardan en <strong>Supabase</strong>,
+                    El catálogo, los afiliados y el historial de pedidos y ventas se guardan en <strong>Supabase</strong>,
                     un proveedor de base de datos con servidores fuera de Cuba. Esto significa que tus datos
                     viajan y se almacenan en otro país. El acceso a esa información está protegido con
                     políticas de seguridad (RLS) que solo permiten leer o modificar cada tabla a quien
                     corresponde: el catálogo es público porque es lo que ves en la tienda, pero los datos de
-                    afiliados y ventas solo los puede consultar la cuenta de administrador.
+                    afiliados, pedidos y ventas solo los puede consultar la cuenta de administrador (y cada afiliado, únicamente
+                    las ventas hechas con su propio código, mediante su código y PIN).
                 </p>
             </section>
 
@@ -106,7 +108,7 @@
                     Tu nombre, teléfono y dirección se comparten con nuestro número de WhatsApp (operado por
                     Meta/WhatsApp Inc.) en el momento en que envías el pedido, ya que así funciona la
                     integración: el mensaje se abre directamente en la app de WhatsApp. El tratamiento que
-                    WhatsApp haga de esa conversación se rige por sus propios términos, ajenos a TinajitoStore.
+                    WhatsApp haga de esa conversación se rige por sus propios términos, ajenos a TinajitoStore. Si usaste el código de un afiliado, ese afiliado puede ver en su portal tu nombre, el monto de la compra y la comisión generada; no ve tu teléfono ni tu dirección.
                 </p>
             </section>
 
