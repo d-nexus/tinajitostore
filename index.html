@@ -124,6 +124,11 @@
                     <span>Carrito</span>
                     <span id="cart-count" class="absolute -top-1 -right-1 bg-rose-500 text-white text-[10px] sm:text-xs rounded-full w-4 h-4 sm:w-5 sm:h-5 flex items-center justify-center font-bold shadow-sm hidden">0</span>
                 </button>
+                <!-- Botón menú hamburguesa (solo móvil) -->
+                <button id="menu-toggle" type="button" aria-label="Abrir menú de categorías" aria-expanded="false" aria-controls="mobile-menu-panel" class="md:hidden inline-flex items-center justify-center w-9 h-9 rounded-full bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 transition-all">
+                    <svg id="menu-icon-open" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+                    <svg id="menu-icon-close" class="w-5 h-5 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
             </div>
         </div>
 
@@ -140,8 +145,8 @@
         </div>
 
         <!-- Filtros por Categoría (Menú de Navegación Principal) -->
-        <div class="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 pb-2.5 pt-1 border-t border-slate-800/80 overflow-x-auto">
-            <div id="category-filters-container" class="flex items-center justify-start sm:justify-center space-x-2 py-1 min-w-max">
+        <div id="mobile-menu-panel" class="hidden md:block max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 pb-2.5 pt-1 border-t border-slate-800/80 md:overflow-x-auto">
+            <div id="category-filters-container" class="flex flex-col md:flex-row items-stretch md:items-center justify-start md:justify-center gap-2 py-1 md:min-w-max">
                 <!-- Inyectado por JS -->
             </div>
         </div>
@@ -305,13 +310,41 @@
                                 <tr class="bg-slate-950 text-slate-400 uppercase text-[11px] font-bold tracking-wider border-b border-slate-800">
                                     <th class="px-6 py-4">Código</th>
                                     <th class="px-6 py-4">Afiliado</th>
-                                    <th class="px-6 py-4 text-center">Ventas</th>
+                                    <th class="px-6 py-4 text-center">Confirmadas</th>
+                                    <th class="px-6 py-4 text-center">Pendientes</th>
                                     <th class="px-6 py-4">Total Movido</th>
                                     <th class="px-6 py-4">Comisión Acumulada</th>
+                                    <th class="px-6 py-4">Por Pagar</th>
                                     <th class="px-6 py-4">Tu Ganancia</th>
+                                    <th class="px-6 py-4 text-right">Acciones</th>
                                 </tr>
                             </thead>
                             <tbody id="sales-report-table" class="divide-y divide-slate-800 text-slate-300">
+                                <!-- Inyectado por JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="bg-slate-900 rounded-3xl border border-slate-800 shadow-sm overflow-hidden">
+                    <div class="p-6 border-b border-slate-800 flex items-center justify-between">
+                        <h3 class="font-bold text-lg text-white">Ventas Recientes</h3>
+                        <span id="admin-pending-badge" class="text-xs font-bold text-amber-400"></span>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse text-sm">
+                            <thead>
+                                <tr class="bg-slate-950 text-slate-400 uppercase text-[11px] font-bold tracking-wider border-b border-slate-800">
+                                    <th class="px-6 py-4">Fecha / ID</th>
+                                    <th class="px-6 py-4">Afiliado</th>
+                                    <th class="px-6 py-4">Cliente</th>
+                                    <th class="px-6 py-4">Monto</th>
+                                    <th class="px-6 py-4">Comisión</th>
+                                    <th class="px-6 py-4 text-center">Estado</th>
+                                    <th class="px-6 py-4 text-right">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="admin-sales-list" class="divide-y divide-slate-800 text-slate-300">
                                 <!-- Inyectado por JS -->
                             </tbody>
                         </table>
@@ -341,6 +374,7 @@
                                     <th class="px-6 py-4">Categoría</th>
                                     <th class="px-6 py-4">Precio</th>
                                     <th class="px-6 py-4">Ganancia</th>
+                                    <th class="px-6 py-4">Stock</th>
                                     <th class="px-6 py-4">Proveedor</th>
                                     <th class="px-6 py-4 text-right">Acciones</th>
                                 </tr>
@@ -659,20 +693,6 @@
         </div>
     </div>
 
-    <!-- MODAL DE CONFIRMACIÓN DE PEDIDO -->
-    <div id="order-confirmation-modal" class="fixed inset-0 bg-slate-950/70 z-50 hidden items-center justify-center p-4 backdrop-blur-sm">
-        <div class="bg-slate-900 rounded-3xl max-w-sm w-full p-6 sm:p-8 shadow-2xl relative animate-fade-in border border-slate-800 text-center">
-            <div class="w-14 h-14 bg-emerald-500/20 rounded-2xl flex items-center justify-center text-emerald-400 mx-auto mb-4">
-                <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
-            </div>
-            <h3 class="text-xl font-bold text-white mb-1">¡Pedido enviado!</h3>
-            <p class="text-sm text-slate-400 mb-4">Se abrió WhatsApp con los detalles. Si no se abrió, revisa que tu navegador permita ventanas emergentes.</p>
-            <p class="text-xs text-slate-500 uppercase tracking-wider">Referencia</p>
-            <p id="order-confirmation-ref" class="text-lg font-mono font-bold text-emerald-400 mb-5">—</p>
-            <button onclick="closeOrderConfirmation()" class="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold py-3 rounded-xl text-sm transition-colors border border-slate-700">Seguir comprando</button>
-        </div>
-    </div>
-
     <!-- MODAL CRUD PRODUCTO -->
     <div id="product-modal" class="fixed inset-0 bg-slate-950/70 z-50 hidden items-center justify-center p-4 backdrop-blur-sm">
         <div class="bg-slate-900 text-slate-100 rounded-3xl max-w-lg w-full p-6 sm:p-8 shadow-2xl relative animate-fade-in border border-slate-800 max-h-[90vh] overflow-y-auto cart-scroll">
@@ -707,21 +727,19 @@
                     </div>
                 </div>
                 <div>
-                    <label class="block text-xs font-semibold text-slate-400 uppercase mb-1">Imagen del producto</label>
-                    <div class="flex items-start gap-3">
-                        <img id="prod-image-preview" src="" alt="" class="w-16 h-16 rounded-lg object-cover border border-slate-800 bg-slate-950 hidden shrink-0">
-                        <div class="flex-1 space-y-2">
-                            <input type="file" id="prod-image-file" accept="image/png,image/jpeg,image/webp,image/gif" class="w-full text-xs text-slate-400 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-indigo-600 file:text-white hover:file:bg-indigo-500 file:cursor-pointer cursor-pointer">
-                            <input type="url" id="prod-image" required placeholder="https://... (o sube una imagen arriba)" class="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-sm text-slate-100 focus:outline-none focus:border-emerald-500 font-medium">
-                        </div>
-                    </div>
-                    <p id="prod-image-status" class="text-xs text-slate-400 mt-1.5"></p>
+                    <label class="block text-xs font-semibold text-slate-400 uppercase mb-1">URL de la Imagen</label>
+                    <input type="url" id="prod-image" required placeholder="https://..." class="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-sm text-slate-100 focus:outline-none focus:border-emerald-500 font-medium">
                 </div>
                 <div>
                     <label class="block text-xs font-semibold text-slate-400 uppercase mb-1">Descripción</label>
                     <textarea id="prod-desc" rows="3" required class="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-sm text-slate-100 focus:outline-none focus:border-emerald-500 font-medium"></textarea>
                 </div>
                                 <div class="border-t border-dashed border-slate-700 pt-4 mt-2">
+                    <label class="block text-xs font-semibold text-slate-400 uppercase mb-1">Stock (unidades disponibles)</label>
+                    <input type="number" step="1" min="0" id="prod-stock" placeholder="Vacío = sin control de stock" class="w-full px-4 py-3 bg-slate-950 border border-slate-800 rounded-xl text-sm text-slate-100 focus:outline-none focus:border-emerald-500 font-medium">
+                    <p class="text-[11px] text-slate-500 mt-1.5 leading-relaxed">Pon <strong class="text-rose-400">0</strong> para marcarlo como <strong class="text-rose-400">Agotado</strong>. Déjalo vacío si no quieres controlar el stock de este producto.</p>
+                </div>
+                <div class="border-t border-dashed border-slate-700 pt-4 mt-2">
                     <p class="flex items-center gap-1.5 text-[11px] font-bold text-amber-400 uppercase tracking-wide mb-3">
                         Márgenes por unidad, en pesos (costo y comisión son privados)
                     </p>
