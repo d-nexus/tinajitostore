@@ -1690,6 +1690,13 @@ function openAffiliateModal(id = null) {
     const title = document.getElementById('affiliate-modal-title');
     const pinInput = document.getElementById('aff-pin');
 
+    // Si index.html quedó desactualizado (sin los campos de descuento/comisión)
+    // se avisa en vez de fallar en silencio con el modal sin abrir.
+    if (!document.getElementById('aff-discount') || !document.getElementById('aff-commission')) {
+        alert('El formulario de afiliados está desactualizado: sube también el index.html nuevo y recarga con Ctrl+Shift+R.');
+        return;
+    }
+
     if (id !== null && id !== undefined) {
         title.textContent = "Editar Afiliado";
         const a = lastAdminAffiliates.find(x => x.id === id);
