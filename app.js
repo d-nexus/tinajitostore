@@ -115,7 +115,7 @@ async function initializeAppAsync() {
 // distintas, con recarga completa) no hacer esperar al visitante la misma
 // consulta a Supabase una y otra vez. Vive solo en esta pestaña (sessionStorage)
 // y se refresca solo, así que nunca queda "pegada" para siempre.
-const CATALOG_CACHE_KEY = 'nexus_catalog_cache_v4';
+const CATALOG_CACHE_KEY = 'nexus_catalog_cache_v5'; // v5: productos con moneda
 const CATALOG_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutos
 
 function readCatalogCache() {
@@ -195,6 +195,7 @@ async function loadCatalog() {
             badge: p.badge,
             subcategory: p.subcategory || null,
             stock: (p.stock === null || p.stock === undefined) ? null : Number(p.stock), // null = sin control; 0 = agotado
+            currency: p.moneda === 'USD' ? 'USD' : 'CUP', // moneda de venta del producto
             affiliateDiscount: Number(p.descuento_afiliado || 0) // pesos por unidad; es público (se ve como ahorro en el carrito)
         }));
 
@@ -228,18 +229,48 @@ async function fetchPublicAffiliate(codigo) {
     }
 }
 
-// Descuento del carrito: un PORCENTAJE del subtotal, definido en cada afiliado
-// (0-100). Solo es para mostrarlo; el servidor lo recalcula al registrar la venta.
-function getCartDiscount() {
-    if (!activeAffiliate) return 0;
-    const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
-    const pct = Math.min(100, Math.max(0, Number(activeAffiliate.descuento || 0)));
-    return Math.round(subtotal * pct) / 100;
+// --- MONEDAS ---
+// Cada producto se vende en CUP (pesos) o USD (dólares). Las dos monedas NUNCA se suman entre sí:
+// el carrito, los pedidos y los reportes las llevan por separado.
+const CURRENCY_ORDER = ['USD', 'CUP'];
+function currencyOf(x) { return x && x.currency === 'USD' ? 'USD' : 'CUP'; }
+function fmtMoney(amount, currency) {
+    return `$${Number(amount || 0).toFixed(2)} ${currency === 'USD' ? 'USD' : 'CUP'}`;
+}
+// Igual que fmtMoney pero con el código de moneda en pequeño (para tarjetas y tablas).
+function priceHtml(amount, currency) {
+    return `$${Number(amount || 0).toFixed(2)}<span class="ml-1 text-[10px] font-bold text-slate-400 tracking-wide">${currency === 'USD' ? 'USD' : 'CUP'}</span>`;
+}
+// La moneda vigente del producto manda sobre la copia guardada en el carrito.
+function cartItemCurrency(item) {
+    const live = products.find(p => p.id === item.id);
+    return currencyOf(live || item);
+}
+// Descuento del afiliado: un PORCENTAJE del subtotal (0-100), aplicado por moneda.
+// Solo es para mostrarlo; el servidor lo recalcula al registrar la venta.
+function cartTotals() {
+    const pct = activeAffiliate ? Math.min(100, Math.max(0, Number(activeAffiliate.descuento || 0))) : 0;
+    const totals = {};
+    cart.forEach(item => {
+        const cur = cartItemCurrency(item);
+        if (!totals[cur]) totals[cur] = { subtotal: 0, discount: 0, total: 0 };
+        totals[cur].subtotal += item.price * item.quantity;
+    });
+    Object.values(totals).forEach(t => {
+        t.discount = Math.round(t.subtotal * pct) / 100;
+        t.total = Math.max(0, t.subtotal - t.discount);
+    });
+    return totals;
+}
+// "$10.00 USD + $500.00 CUP" (o solo una moneda si el carrito tiene una).
+function joinCurrencyTotals(totals, key, prefix = '') {
+    const parts = CURRENCY_ORDER.filter(c => totals[c]).map(c => prefix + fmtMoney(totals[c][key], c));
+    return parts.length ? parts.join(' + ') : fmtMoney(0, 'CUP');
 }
 
 // --- CONFIGURACIÓN DE EVENTOS GLOBALES ---
 function setupGlobalEvents() {
-    ['prod-price', 'prod-cost', 'prod-discount', 'prod-commission'].forEach(id => {
+    ['prod-price', 'prod-cost', 'prod-discount', 'prod-commission', 'prod-currency'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.addEventListener('input', updateMarginPreview);
     });
@@ -669,7 +700,7 @@ function renderProducts(productsToRender) {
                 </div>
                 <div class="mt-4 pt-4 border-t border-slate-800 flex items-center justify-between">
                     <div>
-                        <span class="text-xl font-extrabold text-white">$${product.price.toFixed(2)}</span>
+                        <span class="text-xl font-extrabold text-white">${priceHtml(product.price, product.currency)}</span>
                         ${product.originalPrice ? `<span class="text-xs text-slate-500 line-through ml-1.5">$${product.originalPrice.toFixed(2)}</span>` : ''}
                     </div>
                     ${soldOut ? `<button disabled aria-label="Producto agotado" class="bg-slate-800 text-slate-500 text-xs font-bold px-3 py-2.5 rounded-xl cursor-not-allowed border border-slate-700">Agotado</button>` : `<button onclick="addToCart(${product.id})" aria-label="Añadir al carrito" class="bg-emerald-600 hover:bg-emerald-500 text-white p-2.5 rounded-xl transition-all duration-300 shadow-md hover:shadow-lg flex items-center justify-center group/btn">
@@ -698,13 +729,15 @@ function reconcileCartWithStock() {
     cart = cart.filter(item => {
         const p = products.find(x => x.id === item.id);
         if (!p) return true;
+        item.price = p.price;              // precio y moneda vigentes del catálogo
+        item.currency = currencyOf(p);
         if (isSoldOut(p)) { changed = true; return false; }
         const limit = stockLimit(p);
         if (item.quantity > limit) { item.quantity = limit; changed = true; }
         return true;
     });
+    setStorage('cart', cart);
     if (changed) {
-        setStorage('cart', cart);
         setTimeout(() => showToast('Actualizamos tu carrito: algunos productos se agotaron o tienen menos unidades'), 300);
     }
 }
@@ -822,9 +855,8 @@ async function applyAffiliateFromInput() {
 // Actualizar Carrito UI
 function updateCartUI() {
     const totalCount = cart.reduce((sum, item) => sum + item.quantity, 0);
-    const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-
-    let discountAmount = 0;
+    const totals = cartTotals();
+    const anyDiscount = CURRENCY_ORDER.some(c => totals[c] && totals[c].discount > 0);
     const discountRow = document.getElementById('discount-row');
     const discountLabel = document.getElementById('discount-label');
     const cartDiscountEl = document.getElementById('cart-discount');
@@ -832,23 +864,20 @@ function updateCartUI() {
     const cartCountBadge = document.getElementById('cart-count');
 
     if (activeAffiliate) {
-        discountAmount = getCartDiscount();
         discountRow.classList.remove('hidden');
         discountLabel.textContent = `Descuento (${activeAffiliate.codigo} · ${Number(activeAffiliate.descuento || 0)}%)`;
-        cartDiscountEl.textContent = `-$${discountAmount.toFixed(2)}`;
+        cartDiscountEl.textContent = joinCurrencyTotals(totals, 'discount', '-');
 
         const input = document.getElementById('affiliate-input');
         if (input && input.value !== activeAffiliate.codigo) {
             input.value = activeAffiliate.codigo;
         }
-        feedback.textContent = discountAmount > 0 ? `¡Código aplicado! Ahorras $${discountAmount.toFixed(2)}` : '¡Código aplicado!';
+        feedback.textContent = anyDiscount ? `¡Código aplicado! Ahorras ${joinCurrencyTotals(totals, 'discount')}` : '¡Código aplicado!';
         feedback.className = "mt-2 text-xs font-medium text-emerald-400";
         feedback.classList.remove('hidden');
     } else {
         discountRow.classList.add('hidden');
     }
-
-    const finalTotal = Math.max(0, subtotal - discountAmount);
 
     if (totalCount > 0) {
         cartCountBadge.textContent = totalCount;
@@ -857,8 +886,8 @@ function updateCartUI() {
         cartCountBadge.classList.add('hidden');
     }
 
-    document.getElementById('cart-subtotal').textContent = `$${subtotal.toFixed(2)}`;
-    document.getElementById('cart-total').textContent = `$${finalTotal.toFixed(2)}`;
+    document.getElementById('cart-subtotal').textContent = joinCurrencyTotals(totals, 'subtotal');
+    document.getElementById('cart-total').textContent = joinCurrencyTotals(totals, 'total');
 
     const itemsContainer = document.getElementById('cart-items');
     const emptyMsg = document.getElementById('empty-cart-msg');
@@ -885,7 +914,7 @@ function updateCartUI() {
                 <img src="${escapeHtml(item.image)}" alt="${escapeHtml(item.name)}" loading="lazy" class="w-16 h-16 object-cover rounded-xl bg-slate-900 shadow-xs border border-slate-800" onerror="this.src='https://images.unsplash.com/photo-1584438784894-089d6a62b8fa?auto=format&fit=crop&w=600&q=80'">
                 <div class="flex-1 min-w-0">
                     <h4 class="font-semibold text-white text-xs truncate">${escapeHtml(item.name)}</h4>
-                    <p class="text-emerald-400 font-bold text-xs mt-0.5">$${item.price.toFixed(2)}</p>
+                    <p class="text-emerald-400 font-bold text-xs mt-0.5">${priceHtml(item.price, cartItemCurrency(item))}</p>
                     <div class="flex items-center justify-between mt-2.5">
                         <div class="flex items-center space-x-2 bg-slate-900 border border-slate-800 rounded-lg px-2 py-0.5 shadow-xs">
                             <button onclick="updateQuantity(${item.id}, -1)" class="text-slate-400 hover:text-emerald-400 font-bold px-1 transition-colors">-</button>
@@ -914,31 +943,51 @@ async function sendWhatsAppOrder(e) {
 
     if (cart.length === 0) return;
 
-    let subtotal = 0;
-    let itemsText = cart.map((item, index) => {
+    // Totales por moneda: USD y CUP nunca se suman entre sí.
+    const totals = cartTotals();
+    const anyDiscount = CURRENCY_ORDER.some(c => totals[c] && totals[c].discount > 0);
+
+    const itemsText = cart.map((item, index) => {
+        const cur = cartItemCurrency(item);
         const itemTotal = item.price * item.quantity;
-        subtotal += itemTotal;
-        return `*${index + 1}. ${item.name}* \n   Cant: ${item.quantity} \n   Precio: $${item.price.toFixed(2)} \n   Subtotal: *$${itemTotal.toFixed(2)}*`;
+        return `*${index + 1}. ${item.name}* \n   Cant: ${item.quantity} \n   Precio: ${fmtMoney(item.price, cur)} \n   Subtotal: *${fmtMoney(itemTotal, cur)}*`;
     }).join('\n\n');
 
-    let discountAmount = 0;
     let affiliateInfoText = "";
-
     if (activeAffiliate) {
-        discountAmount = getCartDiscount();
         affiliateInfoText = `🏷️ *Afiliado / Referido:* ${activeAffiliate.nombre}\n` +
                             `🔑 *Código:* ${activeAffiliate.codigo}\n` +
-                            `📉 *Descuento Aplicado:* -$${discountAmount.toFixed(2)}\n`;
+                            `📉 *Descuento Aplicado:* ${joinCurrencyTotals(totals, 'discount', '-')}\n`;
     }
 
-    // Referencia única del pedido: viaja en el mensaje de WhatsApp Y se guarda
-    // en la tabla "sales", así puedes cruzar el chat con el registro.
+    // Referencia única del pedido: viaja en el mensaje de WhatsApp Y se guarda en "sales".
+    // Se registra UN pedido por moneda. El de pesos usa la referencia base; el de dólares
+    // lleva el sufijo "-USD", y así el panel sabe en qué moneda está cada venta.
     const orderRef = buildOrderReference();
-    const finalTotal = Math.max(0, subtotal - discountAmount);
+    const groups = {};
+    cart.forEach(item => { const cur = cartItemCurrency(item); (groups[cur] = groups[cur] || []).push(item); });
+    const currencies = CURRENCY_ORDER.filter(c => groups[c]);
+    const refFor = cur => cur === 'USD' ? `${orderRef}-USD` : orderRef;
+    const refsText = currencies.map(refFor).join(' / ');
+
+    // Se lanzan ANTES de abrir WhatsApp pero sin "await": si esperáramos aquí,
+    // Safari/iOS y otros navegadores bloquean window.open por perder el gesto del clic.
+    // El servidor recalcula precios, descuento y comisión: el navegador no puede inflarlos.
+    const salePromises = currencies.map(cur => submitSaleWithRetry({
+        p_codigo: activeAffiliate ? activeAffiliate.codigo : null,
+        p_cliente: name || 'Cliente General',
+        p_items: groups[cur].map(item => ({ id: item.id, quantity: item.quantity })),
+        p_order_ref: refFor(cur),
+        p_telefono: phone,
+        p_direccion: address,
+        p_pago: payment
+    }));
+
     const itemsCount = cart.reduce((acc, item) => acc + item.quantity, 0);
 
     const message = `🛍️ *NUEVO PEDIDO — TINAJITOSTORE*\n` +
-        `🔖 *Referencia:* ${orderRef}\n` +
+        `🔖 *Referencia:* ${refsText}\n` +
+        (currencies.length > 1 ? `ℹ️ Incluye productos en 2 monedas: se registró una referencia por moneda.\n` : '') +
         `\n👤 *${name}*\n` +
         `📱 ${phone}\n` +
         `📍 ${address}\n` +
@@ -947,57 +996,30 @@ async function sendWhatsAppOrder(e) {
         `\n-----------------------------------\n` +
         `📦 *DETALLE (${itemsCount} artículo${itemsCount === 1 ? '' : 's'}):*\n\n${itemsText}\n\n` +
         `-----------------------------------\n` +
-        (discountAmount > 0 ? `Subtotal: $${subtotal.toFixed(2)}\nDescuento: -$${discountAmount.toFixed(2)}\n` : '') +
-        `💰 *TOTAL: $${finalTotal.toFixed(2)}*\n\n` +
-        `¡Hola! Quiero confirmar este pedido (Ref. ${orderRef}). Quedo atento 🙌`;
+        (anyDiscount ? `Subtotal: ${joinCurrencyTotals(totals, 'subtotal')}\nDescuento: ${joinCurrencyTotals(totals, 'discount', '-')}\n` : '') +
+        `💰 *TOTAL: ${joinCurrencyTotals(totals, 'total')}*\n\n` +
+        `¡Hola! Quiero confirmar este pedido (Ref. ${refsText}). Quedo atento 🙌`;
 
     const whatsappUrl = `https://wa.me/${STORE_WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`;
 
-    // Registro del pedido en Supabase o cola de reintento
-    const salePayload = {
-        p_codigo: activeAffiliate ? activeAffiliate.codigo : null,
-        p_cliente: name || 'Cliente General',
-        p_items: cart.map(item => ({ id: item.id, quantity: item.quantity })),
-        p_order_ref: orderRef,
-        p_telefono: phone,
-        p_direccion: address,
-        p_pago: payment
-    };
+    document.getElementById('checkout-modal').classList.add('hidden');
+    document.getElementById('checkout-modal').classList.remove('flex');
 
-    // 1) Primero procesar la orden de forma limpia (registro en Supabase, vaciar carrito, cerrar modales)
-    const saleOk = await submitSaleWithRetry(salePayload);
-    if (!saleOk) {
-        showToast('El pedido se procesó localmente, pero hubo un problema al sincronizar con el servidor. Se reintentará.');
-    }
+    // El carrito se vacía porque el pedido ya quedó armado en el mensaje;
+    // si el cliente vuelve, no debería reencontrarse el mismo pedido "a medias".
+    // El código de afiliado tampoco debe seguir aplicado a la siguiente compra.
+    cart = [];
+    setStorage('cart', cart);
+    clearActiveAffiliate();
+    updateCartUI();
+    toggleCart(); // cierra el panel del carrito si estaba abierto
 
-    try {
-        document.getElementById('checkout-modal').classList.add('hidden');
-        document.getElementById('checkout-modal').classList.remove('flex');
+    window.open(whatsappUrl, '_blank');
+    showOrderConfirmation(refsText);
 
-        // El carrito se vacía porque el pedido ya quedó armado en el mensaje;
-        // el código de afiliado tampoco debe seguir aplicado a la siguiente compra.
-        cart = [];
-        setStorage('cart', cart);
-        clearActiveAffiliate();
-        updateCartUI();
-
-        // El carrito ya suele estar cerrado (se cierra al abrir el checkout): solo cerrar si sigue abierto.
-        const drawer = document.getElementById('cart-drawer');
-        if (drawer && drawer.classList.contains('translate-x-0')) toggleCart();
-    } catch (err) {
-        console.error('Error limpiando la interfaz tras el pedido:', err);
-    }
-
-    // 2) Disparar la redirección de forma segura para cualquier dispositivo
-    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-    if (isMobile) {
-        window.location.href = whatsappUrl;
-    } else {
-        let waWindow = null;
-        try { waWindow = window.open(whatsappUrl, '_blank'); } catch (err) { console.error('window.open falló:', err); }
-        const blocked = !waWindow || waWindow.closed;
-        showOrderConfirmation(orderRef, whatsappUrl, blocked);
-    }
+    Promise.all(salePromises).then(results => {
+        if (results.some(ok => !ok)) showToast('El pedido salió por WhatsApp, pero no se pudo registrar en el sistema. Se reintentará automáticamente.');
+    });
 }
 
 // --- REGISTRO DE PEDIDOS CON REINTENTO ---
@@ -1044,18 +1066,10 @@ function buildOrderReference() {
 }
 
 // Pantalla simple de "pedido enviado" tras abrir WhatsApp.
-function showOrderConfirmation(orderRef, whatsappUrl, blocked) {
+function showOrderConfirmation(orderRef) {
     const modal = document.getElementById('order-confirmation-modal');
     if (!modal) return;
     document.getElementById('order-confirmation-ref').textContent = orderRef;
-    const link = document.getElementById('order-confirmation-wa-link');
-    if (link && whatsappUrl) link.href = whatsappUrl;
-    const msg = document.getElementById('order-confirmation-msg');
-    if (msg) {
-        msg.textContent = blocked
-            ? 'Tu navegador no abrió WhatsApp automáticamente. Toca el botón verde para enviar tu pedido.'
-            : 'Se abrió WhatsApp con los detalles. Si no se abrió, toca el botón verde de abajo para enviarlo.';
-    }
     modal.classList.remove('hidden');
     modal.classList.add('flex');
 }
@@ -1081,7 +1095,7 @@ function showToast(text) {
 
 function quickView(productId) {
     const p = products.find(x => x.id === productId);
-    if (p) alert(`${p.name}\n\n${p.description}\n\nPrecio: $${p.price.toFixed(2)}${isSoldOut(p) ? '\n\n⛔ AGOTADO' : (p.stock !== null && p.stock !== undefined ? `\n\nDisponibles: ${p.stock}` : '')}`);
+    if (p) alert(`${p.name}\n\n${p.description}\n\nPrecio: ${fmtMoney(p.price, p.currency)}${isSoldOut(p) ? '\n\n⛔ AGOTADO' : (p.stock !== null && p.stock !== undefined ? `\n\nDisponibles: ${p.stock}` : '')}`);
 }
 
 /* ==========================================
@@ -1119,16 +1133,78 @@ function switchAdminTab(tabName) {
 // --- 1. REPORTE DE VENTAS Y COMISIONES ---
 const estadoDe = s => s.estado || 'confirmada'; // compatibilidad si aún no corriste la migración v3
 
+// Moneda de una venta: los pedidos en USD llevan el sufijo "-USD" en su referencia
+// (o la columna "moneda", si existe). Sin sufijo = pesos (CUP).
+function saleCurrency(s) {
+    return (s && (s.moneda === 'USD' || /-USD$/i.test(String(s.order_ref || '')))) ? 'USD' : 'CUP';
+}
+
+// Trae TODAS las ventas (Supabase entrega máx. 1000 por petición, así que se pagina).
+async function fetchAllSales() {
+    const rows = [];
+    const PAGE = 1000;
+    for (let from = 0; ; from += PAGE) {
+        const { data, error } = await supabase.from('sales').select('*')
+            .order('fecha', { ascending: false }).order('id', { ascending: false })
+            .range(from, from + PAGE - 1);
+        if (error) throw error;
+        rows.push(...(data || []));
+        if (!data || data.length < PAGE) break;
+    }
+    return rows;
+}
+
+// El dashboard muestra UNA moneda a la vez (nunca mezcla pesos con dólares).
+let dashCurrency = 'CUP';
+
+function ensureDashCurrencyToggle() {
+    const tab = document.getElementById('admin-tab-dashboard');
+    if (!tab || document.getElementById('dash-currency-toggle')) return;
+    const box = document.createElement('div');
+    box.id = 'dash-currency-toggle';
+    box.className = 'flex flex-wrap items-center gap-3';
+    box.innerHTML = `
+        <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Ver reportes en</span>
+        <div class="flex gap-2">
+            <button type="button" data-cur="CUP" class="dash-currency-btn px-4 py-2 rounded-xl text-xs font-bold">Pesos (CUP)</button>
+            <button type="button" data-cur="USD" class="dash-currency-btn px-4 py-2 rounded-xl text-xs font-bold">Dólares (USD)</button>
+        </div>
+        <span class="text-[11px] text-slate-500">Cada moneda se suma por separado; nunca se mezclan.</span>`;
+    tab.insertBefore(box, tab.firstChild);
+    box.querySelectorAll('.dash-currency-btn').forEach(b => b.addEventListener('click', () => {
+        dashCurrency = b.dataset.cur;
+        renderDashboardFromHistory();
+    }));
+}
+
+function paintDashCurrencyToggle() {
+    document.querySelectorAll('.dash-currency-btn').forEach(b => {
+        const active = b.dataset.cur === dashCurrency;
+        b.classList.toggle('bg-indigo-600', active);
+        b.classList.toggle('text-white', active);
+        b.classList.toggle('bg-slate-800', !active);
+        b.classList.toggle('text-slate-300', !active);
+    });
+}
+
 async function renderAdminDashboard() {
-    const { data, error } = await supabase.from('sales').select('*').order('fecha', { ascending: false });
-    if (error) {
-        console.error('Error cargando ventas:', error.message);
+    ensureDashCurrencyToggle();
+    try {
+        salesHistory = await fetchAllSales();
+    } catch (error) {
+        console.error('Error cargando ventas:', error.message || error);
         return;
     }
-    salesHistory = data || [];
+    renderDashboardFromHistory();
+}
+
+function renderDashboardFromHistory() {
+    paintDashCurrencyToggle();
+    const cur = dashCurrency;
+    const inCur = salesHistory.filter(s => saleCurrency(s) === cur);
 
     // Solo las ventas CONFIRMADAS cuentan para totales y comisiones.
-    const confirmed = salesHistory.filter(s => estadoDe(s) === 'confirmada');
+    const confirmed = inCur.filter(s => estadoDe(s) === 'confirmada');
     const pendingCount = salesHistory.filter(s => estadoDe(s) === 'pendiente').length;
 
     const totalRevenue = confirmed.reduce((acc, s) => acc + Number(s.monto_venta), 0);
@@ -1136,16 +1212,16 @@ async function renderAdminDashboard() {
     const totalProfit = confirmed.reduce((acc, s) => acc + Number(s.ganancia || 0), 0);
 
     document.getElementById('stat-total-sales').textContent = confirmed.length;
-    document.getElementById('stat-total-revenue').textContent = `$${totalRevenue.toFixed(2)}`;
-    document.getElementById('stat-total-commissions').textContent = `$${totalCommissions.toFixed(2)}`;
+    document.getElementById('stat-total-revenue').textContent = fmtMoney(totalRevenue, cur);
+    document.getElementById('stat-total-commissions').textContent = fmtMoney(totalCommissions, cur);
     const profitEl = document.getElementById('stat-total-profit');
-    if (profitEl) profitEl.textContent = `$${totalProfit.toFixed(2)}`;
+    if (profitEl) profitEl.textContent = fmtMoney(totalProfit, cur);
     const badge = document.getElementById('admin-pending-badge');
     if (badge) badge.textContent = pendingCount ? `${pendingCount} pendiente(s) por revisar` : '';
 
-    // --- Resumen por afiliado ---
+    // --- Resumen por afiliado (solo la moneda elegida) ---
     const statsByCode = {};
-    salesHistory.forEach(s => {
+    inCur.forEach(s => {
         const st = estadoDe(s);
         if (st === 'cancelada' || !s.codigo) return; // sin código = venta directa, no va en la tabla de afiliados
         if (!statsByCode[s.codigo]) {
@@ -1164,12 +1240,12 @@ async function renderAdminDashboard() {
     const keys = Object.keys(statsByCode);
 
     if (keys.length === 0) {
-        tableBody.innerHTML = `<tr><td colspan="8" class="px-6 py-10 text-center text-slate-500">No hay ventas registradas con códigos de afiliados aún.</td></tr>`;
+        tableBody.innerHTML = `<tr><td colspan="9" class="px-6 py-10 text-center text-slate-500">No hay ventas en ${cur} con códigos de afiliados aún.</td></tr>`;
     } else {
         tableBody.innerHTML = keys.map(code => {
             const item = statsByCode[code];
             const payBtn = item.unpaid > 0
-                ? `<button onclick="adminPayAffiliate('${escapeHtml(code)}')" class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold">Pagar todo</button>`
+                ? `<button onclick="adminPayAffiliate('${escapeHtml(code)}','${cur}')" class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold">Pagar todo</button>`
                 : `<span class="text-xs text-slate-500">Al día</span>`;
             return `
                 <tr class="hover:bg-slate-800/50 transition-colors">
@@ -1177,10 +1253,10 @@ async function renderAdminDashboard() {
                     <td class="px-6 py-4 text-slate-300 font-medium">${escapeHtml(item.nombre)}</td>
                     <td class="px-6 py-4 text-slate-400 text-center">${item.count}</td>
                     <td class="px-6 py-4 text-amber-400 text-center font-bold">${item.pending}</td>
-                    <td class="px-6 py-4 text-white font-bold">$${item.revenue.toFixed(2)}</td>
-                    <td class="px-6 py-4 text-indigo-400 font-extrabold">$${item.commission.toFixed(2)}</td>
-                    <td class="px-6 py-4 text-amber-400 font-extrabold">$${item.unpaid.toFixed(2)}</td>
-                    <td class="px-6 py-4 text-emerald-400 font-extrabold">$${item.profit.toFixed(2)}</td>
+                    <td class="px-6 py-4 text-white font-bold">${fmtMoney(item.revenue, cur)}</td>
+                    <td class="px-6 py-4 text-indigo-400 font-extrabold">${fmtMoney(item.commission, cur)}</td>
+                    <td class="px-6 py-4 text-amber-400 font-extrabold">${fmtMoney(item.unpaid, cur)}</td>
+                    <td class="px-6 py-4 text-emerald-400 font-extrabold">${fmtMoney(item.profit, cur)}</td>
                     <td class="px-6 py-4 text-right">${payBtn}</td>
                 </tr>
             `;
@@ -1237,8 +1313,8 @@ function renderAdminSalesList() {
                 <td class="px-6 py-4"><span class="block font-bold text-white">#${id}</span><span class="block text-[11px] text-slate-400">${s.fecha ? new Date(s.fecha).toLocaleString() : ''}</span></td>
                 <td class="px-6 py-4 font-mono font-bold ${s.codigo ? 'text-white' : 'text-slate-500'}">${s.codigo ? escapeHtml(s.codigo) : 'Directa'}</td>
                 <td class="px-6 py-4 text-slate-300"><span class="block">${escapeHtml(s.cliente || 'Cliente General')}</span>${s.order_ref ? `<span class="block text-[11px] text-slate-500 font-mono">${escapeHtml(s.order_ref)}</span>` : ''}${saleField(s, 'telefono') ? `<span class="block text-[11px] text-slate-400">📱 ${escapeHtml(saleField(s, 'telefono'))}</span>` : ''}</td>
-                <td class="px-6 py-4 text-white font-bold">$${Number(s.monto_venta).toFixed(2)}</td>
-                <td class="px-6 py-4 text-indigo-400 font-bold">$${Number(s.comision_ganada).toFixed(2)}</td>
+                <td class="px-6 py-4 text-white font-bold">${fmtMoney(s.monto_venta, saleCurrency(s))}</td>
+                <td class="px-6 py-4 text-indigo-400 font-bold">${fmtMoney(s.comision_ganada, saleCurrency(s))}</td>
                 <td class="px-6 py-4 text-center"><span class="${badges[st] || badges.pendiente} font-bold px-3 py-1 rounded-full text-xs">${label}</span></td>
                 <td class="px-6 py-4 text-right whitespace-nowrap">${actions}</td>
             </tr>`;
@@ -1295,7 +1371,7 @@ function buildClientWhatsAppUrl(s) {
     const nombre = (s.cliente && s.cliente !== 'Cliente General') ? ` ${s.cliente}` : '';
     let msg = `Hola${nombre}, te escribimos de TinajitoStore por tu pedido${s.order_ref ? ` (Ref. ${s.order_ref})` : ''}.`;
     if (items.length) msg += '\n\n' + items.map(i => `• ${i.qty} x ${i.name}`).join('\n');
-    msg += `\n\nTotal: $${Number(s.monto_venta || 0).toFixed(2)}`;
+    msg += `\n\nTotal: ${fmtMoney(s.monto_venta, saleCurrency(s))}`;
     return `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`;
 }
 
@@ -1318,7 +1394,8 @@ window.openOrderDetail = function (id) {
         cancelada: 'bg-rose-500/10 text-rose-400'
     };
     const statusLabel = st === 'confirmada' && s.comision_pagada ? 'Comisión pagada' : st.charAt(0).toUpperCase() + st.slice(1);
-    const money = v => `$${Number(v || 0).toFixed(2)}`;
+    const cur = saleCurrency(s);
+    const money = v => fmtMoney(v, cur);
     const dash = '<span class="text-slate-600">—</span>';
     const field = (label, value) => `
         <div>
@@ -1432,20 +1509,11 @@ window.exportSalesCSV = async function () {
     if (btn) { btn.disabled = true; btn.textContent = 'Exportando…'; }
     try {
         // Se pide todo a la base (no solo las 50 filas visibles), en páginas de 1000.
-        const rows = [];
-        const PAGE = 1000;
-        for (let from = 0; ; from += PAGE) {
-            const { data, error } = await supabase.from('sales').select('*')
-                .order('fecha', { ascending: false }).order('id', { ascending: false })
-                .range(from, from + PAGE - 1);
-            if (error) throw error;
-            rows.push(...(data || []));
-            if (!data || data.length < PAGE) break;
-        }
+        const rows = await fetchAllSales();
         if (rows.length === 0) { showToast('No hay ventas para exportar'); return; }
 
         const header = ['ID', 'Fecha', 'Referencia', 'Estado', 'Cliente', 'Teléfono', 'Dirección', 'Método de pago',
-            'Productos', 'Código afiliado', 'Afiliado', 'Monto venta', 'Comisión', 'Ganancia', 'Comisión pagada'];
+            'Productos', 'Código afiliado', 'Afiliado', 'Moneda', 'Monto venta', 'Comisión', 'Ganancia', 'Comisión pagada'];
         const lines = [header.map(csvText).join(CSV_DELIMITER)];
 
         rows.forEach(s => {
@@ -1462,6 +1530,7 @@ window.exportSalesCSV = async function () {
                 csvText(items),
                 csvText(s.codigo || ''),
                 csvText(s.codigo ? (s.nombre || '') : ''),
+                csvText(saleCurrency(s)),
                 csvNum(s.monto_venta),
                 csvNum(s.comision_ganada),
                 csvNum(s.ganancia),
@@ -1506,20 +1575,44 @@ window.setReportPeriod = function (period) {
     renderPeriodReport();
 };
 
-async function renderPeriodReport() {
+// Clave del periodo en hora de Cuba: 2026-09-29 / 2026-09 / 2026.
+function periodKey(fecha, periodo) {
+    const d = new Date(fecha);
+    if (!fecha || isNaN(d)) return 'Sin fecha';
+    const day = d.toLocaleDateString('sv-SE', { timeZone: 'America/Havana' }); // AAAA-MM-DD
+    return periodo === 'anio' ? day.slice(0, 4) : periodo === 'mes' ? day.slice(0, 7) : day;
+}
+
+// Agrupa las ventas de UNA moneda por periodo. Solo las confirmadas suman dinero.
+function buildPeriodRows(sales, cur, periodo) {
+    const map = {};
+    sales.forEach(s => {
+        if (saleCurrency(s) !== cur) return;
+        const key = periodKey(s.fecha, periodo);
+        const r = map[key] || (map[key] = { periodo: key, pedidos: 0, confirmadas: 0, pendientes: 0, canceladas: 0, ingresos: 0, comisiones: 0, ganancia: 0 });
+        const st = estadoDe(s);
+        r.pedidos += 1;
+        if (st === 'confirmada') {
+            r.confirmadas += 1;
+            r.ingresos += Number(s.monto_venta || 0);
+            r.comisiones += Number(s.comision_ganada || 0);
+            r.ganancia += Number(s.ganancia || 0);
+        } else if (st === 'pendiente') r.pendientes += 1;
+        else if (st === 'cancelada') r.canceladas += 1;
+    });
+    return Object.values(map).sort((x, y) => y.periodo.localeCompare(x.periodo));
+}
+
+function renderPeriodReport() {
     const tbody = document.getElementById('period-report-table');
     if (!tbody) return;
-    const { data, error } = await supabase.rpc('admin_sales_report', { p_periodo: reportPeriod });
-    if (error) {
-        tbody.innerHTML = `<tr><td colspan="8" class="px-6 py-8 text-center text-rose-400">No se pudo cargar el reporte: ${escapeHtml(error.message)}. ¿Ya ejecutaste migracion-v4-ventas.sql?</td></tr>`;
-        return;
-    }
-    const rows = data || [];
+    const cur = dashCurrency;
+    const rows = buildPeriodRows(salesHistory, cur, reportPeriod);
     if (rows.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="8" class="px-6 py-10 text-center text-slate-500">Aún no hay pedidos registrados.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="8" class="px-6 py-10 text-center text-slate-500">Aún no hay pedidos en ${cur}.</td></tr>`;
         return;
     }
-    const m = v => `$${Number(v || 0).toFixed(2)}`;
+    const m = v => fmtMoney(v, cur);
     tbody.innerHTML = rows.map(r => `
         <tr class="hover:bg-slate-800/50 transition-colors">
             <td class="px-6 py-4 font-bold text-white whitespace-nowrap">${escapeHtml(r.periodo)}</td>
@@ -1533,7 +1626,7 @@ async function renderPeriodReport() {
         </tr>`).join('');
 
     // Fila de totales del listado mostrado
-    const sum = k => rows.reduce((a, r) => a + Number(r[k] || 0), 0);
+    const sum = k => rows.reduce((acc, r) => acc + Number(r[k] || 0), 0);
     tbody.innerHTML += `
         <tr class="bg-slate-950 font-black text-white">
             <td class="px-6 py-4">TOTAL</td>
@@ -1561,9 +1654,18 @@ window.adminSetSaleStatus = function (id, estado) {
 window.adminSetCommissionPaid = function (id, pagada) {
     adminRpcAndRefresh('admin_set_commission_paid', { p_id: id, p_pagada: pagada }, pagada ? 'Comisión marcada como pagada' : 'Pago deshecho');
 };
-window.adminPayAffiliate = function (codigo) {
-    if (!confirm(`¿Marcar como pagadas todas las comisiones confirmadas de ${codigo}?`)) return;
-    adminRpcAndRefresh('admin_pay_affiliate', { p_codigo: codigo }, 'Comisiones marcadas como pagadas');
+window.adminPayAffiliate = async function (codigo, moneda) {
+    // Solo las comisiones de ESA moneda: pagar pesos no debe marcar como pagados los dólares.
+    const pending = salesHistory.filter(s => s.codigo === codigo && estadoDe(s) === 'confirmada'
+        && !s.comision_pagada && saleCurrency(s) === moneda);
+    if (pending.length === 0) return;
+    const total = pending.reduce((acc, s) => acc + Number(s.comision_ganada || 0), 0);
+    if (!confirm(`¿Marcar como pagadas ${pending.length} comisión(es) de ${codigo} por ${fmtMoney(total, moneda)}?`)) return;
+    const results = await Promise.all(pending.map(s => supabase.rpc('admin_set_commission_paid', { p_id: s.id, p_pagada: true })));
+    const failed = results.find(r => r.error);
+    if (failed) alert('No se pudieron marcar todas: ' + failed.error.message);
+    else showToast('Comisiones marcadas como pagadas');
+    renderAdminDashboard();
 };
 
 // --- 2. GESTIÓN DE PRODUCTOS (CRUD) ---
@@ -1634,7 +1736,7 @@ async function renderAdminProducts() {
         let profitCell = '<span class="text-amber-400 text-xs italic">Falta costo</span>';
         if (supplier.costo !== null && supplier.costo !== undefined) {
             const base = p.price - Number(supplier.costo);
-            profitCell = `<div class="text-xs"><p class="font-bold ${base > 0 ? 'text-emerald-400' : 'text-rose-400'}">$${base.toFixed(2)}</p></div>`;
+            profitCell = `<div class="text-xs"><p class="font-bold ${base > 0 ? 'text-emerald-400' : 'text-rose-400'}">${fmtMoney(base, p.currency)}</p></div>`;
         }
 
         return `
@@ -1644,7 +1746,7 @@ async function renderAdminProducts() {
             </td>
             <td class="px-6 py-4 font-bold text-white">${escapeHtml(p.name)}</td>
             <td class="px-6 py-4"><span class="bg-indigo-500/10 text-indigo-400 font-semibold px-2.5 py-1 rounded-lg text-xs capitalize">${escapeHtml(p.category)}</span>${p.subcategory ? `<span class="block text-[11px] text-slate-500 mt-1 capitalize">${escapeHtml(p.subcategory)}</span>` : ''}</td>
-            <td class="px-6 py-4 font-extrabold text-white">$${p.price.toFixed(2)}</td>
+            <td class="px-6 py-4 font-extrabold text-white">${priceHtml(p.price, p.currency)}</td>
             <td class="px-6 py-4">${profitCell}</td>
             <td class="px-6 py-4">${stockCell(p)}</td>
             <td class="px-6 py-4">${supplierCell}</td>
@@ -1677,6 +1779,8 @@ function openProductModal(id = null) {
             document.getElementById('prod-name').value = p.name;
             document.getElementById('prod-category').value = p.category;
             document.getElementById('prod-price').value = p.price;
+            const curEl = document.getElementById('prod-currency');
+            if (curEl) curEl.value = currencyOf(p);
             document.getElementById('prod-original-price').value = p.originalPrice || '';
             document.getElementById('prod-badge').value = p.badge || '';
             document.getElementById('prod-image').value = p.image;
@@ -1726,6 +1830,11 @@ function closeProductModal() {
     document.getElementById('product-modal').classList.remove('flex');
 }
 
+function currencyFromForm() {
+    const el = document.getElementById('prod-currency');
+    return el && el.value === 'USD' ? 'USD' : 'CUP';
+}
+
 // Vista previa en vivo de tu ganancia mientras llenas el formulario
 function updateMarginPreview() {
     const el = document.getElementById('prod-margin-preview');
@@ -1735,7 +1844,7 @@ function updateMarginPreview() {
     if (isNaN(price) || isNaN(cost)) { el.innerHTML = ''; return; }
     const base = price - cost;
     const cls = base < 0 ? 'text-rose-400' : (base === 0 ? 'text-amber-400' : 'text-emerald-400');
-    el.innerHTML = `Ganancia por unidad: <span class="${cls}">$${base.toFixed(2)}</span> <span class="text-slate-500">(el descuento y la comisión ahora se definen en cada afiliado)</span>`;
+    el.innerHTML = `Ganancia por unidad: <span class="${cls}">${fmtMoney(base, currencyFromForm())}</span> <span class="text-slate-500">(el descuento y la comisión ahora se definen en cada afiliado)</span>`;
 }
 
 function setProductImagePreview(url) {
@@ -1840,6 +1949,13 @@ async function handleSaveProduct(e) {
     if (stockEl && savedId) {
         const { error: stockErr } = await supabase.from('products').update({ stock }).eq('id', savedId);
         if (stockErr) alert('El producto se guardó, pero no se pudo guardar el stock: ' + stockErr.message + '\n\n¿Corriste la migración MIGRACION_v4_stock.sql en Supabase?');
+    }
+
+    // La moneda se guarda aparte (columna products.moneda; la función del servidor no cambia).
+    const currencyEl = document.getElementById('prod-currency');
+    if (currencyEl && savedId) {
+        const { error: curErr } = await supabase.from('products').update({ moneda: currencyEl.value === 'USD' ? 'USD' : 'CUP' }).eq('id', savedId);
+        if (curErr) alert('El producto se guardó, pero no se pudo guardar la moneda: ' + curErr.message + '\n\n¿Ejecutaste migracion-moneda.sql en Supabase?');
     }
 
     await applyProductSubcategory(name, category, subcategory);
@@ -2207,6 +2323,8 @@ function initPortalView() {
     if (pinInput) pinInput.value = '';
 }
 
+function portalSaleCurrency(s) { return s._moneda === 'USD' ? 'USD' : saleCurrency(s); }
+
 function renderPortalDashboard(aff) {
     const initials = aff.nombre.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
     document.getElementById('portal-avatar-initials').textContent = initials;
@@ -2220,12 +2338,21 @@ function renderPortalDashboard(aff) {
     // Solo las ventas confirmadas suman a sus totales.
     const confirmedSales = ambassadorSales.filter(s => (s.estado || 'confirmada') === 'confirmada');
     const totalSales = confirmedSales.length;
-    const totalRevenue = confirmedSales.reduce((acc, s) => acc + Number(s.monto_venta), 0);
-    const totalCommission = confirmedSales.reduce((acc, s) => acc + Number(s.comision_ganada), 0);
+    // Totales por moneda (pesos y dólares nunca se suman).
+    const sumByCur = key => {
+        const o = {};
+        confirmedSales.forEach(s => { const c = portalSaleCurrency(s); o[c] = (o[c] || 0) + Number(s[key] || 0); });
+        return o;
+    };
+    const setMoneyLines = (id, byCur) => {
+        const el = document.getElementById(id);
+        const curs = CURRENCY_ORDER.filter(c => byCur[c] !== undefined);
+        el.innerHTML = (curs.length ? curs : ['CUP']).map(c => `<span class="block">${escapeHtml(fmtMoney(byCur[c] || 0, c))}</span>`).join('');
+    };
 
     document.getElementById('portal-stat-sales').textContent = totalSales;
-    document.getElementById('portal-stat-revenue').textContent = `$${totalRevenue.toFixed(2)}`;
-    document.getElementById('portal-stat-commission').textContent = `$${totalCommission.toFixed(2)}`;
+    setMoneyLines('portal-stat-revenue', sumByCur('monto_venta'));
+    setMoneyLines('portal-stat-commission', sumByCur('comision_ganada'));
 
     const referralUrl = `${window.location.origin}${window.location.pathname}?ref=${aff.codigo}`;
     document.getElementById('portal-referral-link').value = referralUrl;
@@ -2238,6 +2365,7 @@ function renderPortalDashboard(aff) {
 
     tbody.innerHTML = ambassadorSales.map(s => {
         const dateStr = s.fecha ? new Date(s.fecha).toLocaleDateString() : 'Reciente';
+        const cur = portalSaleCurrency(s);
         const st = s.estado || 'confirmada';
         const badge = st === 'pendiente' ? ['En revisión', 'bg-amber-500/10 text-amber-400']
             : st === 'cancelada' ? ['Cancelada', 'bg-rose-500/10 text-rose-400']
@@ -2250,8 +2378,8 @@ function renderPortalDashboard(aff) {
                     <span class="block text-[11px] text-slate-400">${dateStr}</span>
                 </td>
                 <td class="px-6 py-4 text-slate-300 font-medium">${escapeHtml(s.cliente || 'Cliente General')}</td>
-                <td class="px-6 py-4 text-white font-bold">$${Number(s.monto_venta).toFixed(2)}</td>
-                <td class="px-6 py-4 font-extrabold ${st === 'cancelada' ? 'text-slate-500 line-through' : st === 'pendiente' ? 'text-amber-400' : 'text-emerald-400'}">+$${Number(s.comision_ganada).toFixed(2)}</td>
+                <td class="px-6 py-4 text-white font-bold">${fmtMoney(s.monto_venta, cur)}</td>
+                <td class="px-6 py-4 font-extrabold ${st === 'cancelada' ? 'text-slate-500 line-through' : st === 'pendiente' ? 'text-amber-400' : 'text-emerald-400'}">+${fmtMoney(s.comision_ganada, cur)}</td>
                 <td class="px-6 py-4 text-center">
                     <span class="${badge[1]} font-bold px-3 py-1 rounded-full text-xs">${badge[0]}</span>
                 </td>
@@ -2285,6 +2413,14 @@ window.consultarEstadisticasAfiliado = async function () {
 
     const { data: sales, error: salesErr } = await supabase.rpc('get_affiliate_sales', { p_codigo: codigoInput, p_pin: pinInput });
     salesHistory = salesErr ? [] : (sales || []);
+    // Moneda de cada venta (función opcional de migracion-moneda.sql). Si no existe, se deduce de order_ref o queda en CUP.
+    try {
+        const { data: curRows, error: curErr } = await supabase.rpc('get_affiliate_sales_currency', { p_codigo: codigoInput, p_pin: pinInput });
+        if (!curErr && Array.isArray(curRows)) {
+            const byId = new Map(curRows.map(r => [Number(r.id), r.moneda]));
+            salesHistory.forEach(s => { if (byId.has(Number(s.id))) s._moneda = byId.get(Number(s.id)); });
+        }
+    } catch (e) { /* opcional */ }
 
     const loginSection = document.getElementById('portal-login-section');
     const dashboardSection = document.getElementById('portal-dashboard-section');
