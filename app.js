@@ -89,11 +89,18 @@ async function initializeAppAsync() {
     try {
         const urlParams = new URLSearchParams(window.location.search);
         const refCode = urlParams.get('ref');
-        if (refCode) {
-            const found = await fetchPublicAffiliate(refCode);
+        // También se revalida el afiliado guardado en el navegador: así toma el
+        // descuento vigente (o se descarta si el código ya no existe).
+        const codeToCheck = refCode || (activeAffiliate && activeAffiliate.codigo);
+        if (codeToCheck) {
+            const found = await fetchPublicAffiliate(codeToCheck);
             if (found) {
                 activeAffiliate = found;
                 setStorage('active_affiliate', activeAffiliate);
+                updateCartUI();
+            } else if (!refCode) {
+                activeAffiliate = null;
+                setStorage('active_affiliate', null);
                 updateCartUI();
             }
         }
@@ -206,8 +213,8 @@ async function loadCatalog() {
     }
 }
 
-// Datos públicos de un afiliado (solo código y nombre, para validar el
-// código en el carrito). Nunca expone el PIN ni la comisión.
+// Datos públicos de un afiliado (código, nombre y descuento al cliente, para
+// validar el código y mostrar el ahorro en el carrito). Nunca expone el PIN ni la comisión.
 async function fetchPublicAffiliate(codigo) {
     if (!supabase) return null;
     try {
@@ -220,14 +227,12 @@ async function fetchPublicAffiliate(codigo) {
     }
 }
 
-// Descuento del carrito: suma de los montos FIJOS por unidad de cada producto
-// (nunca más que el precio). Solo es para mostrarlo; el servidor lo recalcula.
+// Descuento del carrito: un monto FIJO por pedido, definido en cada afiliado
+// (nunca más que el subtotal). Solo es para mostrarlo; el servidor lo recalcula.
 function getCartDiscount() {
-    return cart.reduce((sum, item) => {
-        const p = products.find(x => x.id === item.id);
-        const d = p ? Math.min(Number(p.affiliateDiscount || 0), Number(p.price)) : 0;
-        return sum + d * item.quantity;
-    }, 0);
+    if (!activeAffiliate) return 0;
+    const subtotal = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+    return Math.min(Number(activeAffiliate.descuento || 0), subtotal);
 }
 
 // --- CONFIGURACIÓN DE EVENTOS GLOBALES ---
@@ -768,7 +773,7 @@ function clearActiveAffiliate() {
     if (feedback) feedback.classList.add('hidden');
 }
 
-// Aplicar Afiliado (consulta pública: solo código y nombre)
+// Aplicar Afiliado (consulta pública: código, nombre y descuento)
 async function applyAffiliateFromInput() {
     const code = document.getElementById('affiliate-input').value.toUpperCase().trim();
     const feedback = document.getElementById('affiliate-feedback');
@@ -823,7 +828,7 @@ function updateCartUI() {
         if (input && input.value !== activeAffiliate.codigo) {
             input.value = activeAffiliate.codigo;
         }
-        feedback.textContent = discountAmount > 0 ? `¡Código aplicado! Ahorras $${discountAmount.toFixed(2)}` : '¡Código aplicado! (los productos de tu carrito no tienen descuento)';
+        feedback.textContent = discountAmount > 0 ? `¡Código aplicado! Ahorras $${discountAmount.toFixed(2)}` : '¡Código aplicado!';
         feedback.className = "mt-2 text-xs font-medium text-emerald-400";
         feedback.classList.remove('hidden');
     } else {
@@ -914,7 +919,7 @@ async function sendWhatsAppOrder(e) {
 
         // El registro real de la venta y su comisión ocurre en el servidor
         // (record_sale), que vuelve a calcular todo con los precios y el %
-        // guardados en la base de datos (montos fijos por producto): el navegador no puede inflar esto.
+        // guardados en la base de datos (descuento y comisión fijos por afiliado): el navegador no puede inflar esto.
         const { error } = await supabase.rpc('record_sale', {
             p_codigo: activeAffiliate.codigo,
             p_cliente: name || 'Cliente General',
@@ -1246,12 +1251,11 @@ async function renderAdminProducts() {
                </div>`
             : `<span class="text-slate-600 text-xs italic">Sin asignar</span>`;
 
-        // Ganancia limpia por unidad: sin afiliado y con afiliado (descuento + comisión)
+        // Ganancia limpia por unidad (precio - costo)
         let profitCell = '<span class="text-amber-400 text-xs italic">Falta costo</span>';
         if (supplier.costo !== null && supplier.costo !== undefined) {
             const base = p.price - Number(supplier.costo);
-            const conAf = base - Number(p.affiliateDiscount || 0) - Number(supplier.comision || 0);
-            profitCell = `<div class="text-xs"><p class="font-bold ${base > 0 ? 'text-emerald-400' : 'text-rose-400'}">$${base.toFixed(2)}</p><p class="text-slate-500">con código: $${conAf.toFixed(2)}</p></div>`;
+            profitCell = `<div class="text-xs"><p class="font-bold ${base > 0 ? 'text-emerald-400' : 'text-rose-400'}">$${base.toFixed(2)}</p></div>`;
         }
 
         return `
@@ -1349,14 +1353,10 @@ function updateMarginPreview() {
     if (!el) return;
     const price = parseFloat(document.getElementById('prod-price').value);
     const cost = parseFloat(document.getElementById('prod-cost').value);
-    const disc = parseFloat(document.getElementById('prod-discount').value) || 0;
-    const com = parseFloat(document.getElementById('prod-commission').value) || 0;
     if (isNaN(price) || isNaN(cost)) { el.innerHTML = ''; return; }
     const base = price - cost;
-    const conAf = base - disc - com;
-    const cls = conAf < 0 ? 'text-rose-400' : (conAf === 0 ? 'text-amber-400' : 'text-emerald-400');
-    el.innerHTML = `Ganancia sin código: <span class="text-emerald-400">$${base.toFixed(2)}</span> · Cliente paga con código: $${Math.max(0, price - disc).toFixed(2)} · Ganancia con código: <span class="${cls}">$${conAf.toFixed(2)}</span>` +
-        (conAf < 0 ? '<br><span class="text-rose-400">⚠ Perderías dinero: baja el descuento o la comisión. No se podrá guardar.</span>' : '');
+    const cls = base < 0 ? 'text-rose-400' : (base === 0 ? 'text-amber-400' : 'text-emerald-400');
+    el.innerHTML = `Ganancia por unidad: <span class="${cls}">$${base.toFixed(2)}</span> <span class="text-slate-500">(el descuento y la comisión ahora se definen en cada afiliado)</span>`;
 }
 
 function setProductImagePreview(url) {
@@ -1652,18 +1652,18 @@ async function renderAdminAffiliates() {
     const tbody = document.getElementById('admin-affiliates-table');
     const { data, error } = await supabase
         .from('affiliates')
-        .select('id,codigo,nombre')
+        .select('id,codigo,nombre,descuento,comision')
         .order('codigo');
 
     if (error) {
-        tbody.innerHTML = `<tr><td colspan="3" class="px-6 py-10 text-center text-rose-400">Error cargando afiliados: ${escapeHtml(error.message)}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="5" class="px-6 py-10 text-center text-rose-400">Error cargando afiliados: ${escapeHtml(error.message)}</td></tr>`;
         return;
     }
 
     lastAdminAffiliates = data || [];
 
     if (lastAdminAffiliates.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="3" class="px-6 py-10 text-center text-slate-500">No hay afiliados registrados.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="5" class="px-6 py-10 text-center text-slate-500">No hay afiliados registrados.</td></tr>`;
         return;
     }
 
@@ -1671,6 +1671,8 @@ async function renderAdminAffiliates() {
         <tr class="hover:bg-slate-800/50 transition-colors">
             <td class="px-6 py-4 font-mono font-extrabold text-white">${escapeHtml(a.codigo)}</td>
             <td class="px-6 py-4 font-semibold text-slate-200">${escapeHtml(a.nombre)}</td>
+            <td class="px-6 py-4 font-bold text-emerald-400">$${Number(a.descuento || 0).toFixed(2)}</td>
+            <td class="px-6 py-4 font-bold text-indigo-400">$${Number(a.comision || 0).toFixed(2)}</td>
             <td class="px-6 py-4 text-right space-x-2">
                 <button onclick="openAffiliateModal(${a.id})" class="text-indigo-400 hover:text-indigo-300 font-semibold text-xs bg-indigo-500/10 hover:bg-indigo-500/20 px-3 py-1.5 rounded-lg transition-colors">Editar</button>
                 <button onclick="deleteAffiliate(${a.id})" class="text-rose-400 hover:text-rose-300 font-semibold text-xs bg-rose-500/10 hover:bg-rose-500/20 px-3 py-1.5 rounded-lg transition-colors">Eliminar</button>
@@ -1694,6 +1696,8 @@ function openAffiliateModal(id = null) {
         if (a) {
             document.getElementById('aff-code').value = a.codigo;
             document.getElementById('aff-name').value = a.nombre;
+            document.getElementById('aff-discount').value = Number(a.descuento || 0);
+            document.getElementById('aff-commission').value = Number(a.comision || 0);
         }
         pinInput.value = '';
         pinInput.required = false;
@@ -1722,6 +1726,13 @@ async function handleSaveAffiliate(e) {
     const codigo = document.getElementById('aff-code').value.toUpperCase().trim();
     const nombre = document.getElementById('aff-name').value.trim();
     const pin = document.getElementById('aff-pin').value.trim();
+    const descuento = parseFloat(document.getElementById('aff-discount').value) || 0;
+    const comision = parseFloat(document.getElementById('aff-commission').value) || 0;
+
+    if (descuento < 0 || comision < 0) {
+        alert('El descuento y la comisión no pueden ser negativos.');
+        return;
+    }
 
     // El hash del PIN se genera DENTRO de la base de datos (admin_upsert_affiliate),
     // nunca en el navegador: así el PIN en texto plano jamás queda guardado en ningún lado.
@@ -1729,6 +1740,8 @@ async function handleSaveAffiliate(e) {
         p_id: editingAffiliateId,
         p_codigo: codigo,
         p_nombre: nombre,
+        p_descuento: descuento,
+        p_comision: comision,
         p_pin: pin || null
     });
 
