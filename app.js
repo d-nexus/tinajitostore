@@ -1870,6 +1870,82 @@ window.cerrarSesionEmbajador = function () {
 };
 
 // ==========================================
+// VIDEO DEL BANNER: carga diferida y con criterio
+// ==========================================
+// El <video> llega desde el HTML SIN autoplay y con preload="none": el
+// <source> real vive en data-src, así que por defecto el navegador no baja
+// ni un byte del mp4 y lo único que se ve es el poster (la misma imagen del
+// logo, que ya se precarga con fetchpriority="high"). Esta función decide,
+// una vez que la página ya cargó, si vale la pena bajar el video:
+//   - Si el visitante pidió "reducir movimiento" (accesibilidad) o tiene
+//     activado el modo ahorro de datos / una conexión lenta (2G/3G), el
+//     video NUNCA se pide: se queda en la imagen fija y ya.
+//   - Si no, se espera a que la página termine de cargar (evento "load") y
+//     recién ahí se pide el mp4, para no competir por ancho de banda con
+//     fuentes, imágenes y el catálogo que vienen de Supabase.
+//   - Una vez reproduciéndose, se pausa solo (ahorra batería y CPU, no ya
+//     datos) cuando la pestaña queda oculta o cuando el usuario baja el
+//     scroll y el Hero sale de la pantalla; se reanuda al volver.
+(function setupHeroVideoLazyLoad() {
+    const video = document.getElementById('hero-video');
+    if (!video) return;
+
+    const source = video.querySelector('source[data-src]');
+    if (!source) return; // ya tiene src real (o el HTML no trae este bloque): no hay nada que diferir
+
+    const prefersReducedMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const conn = navigator.connection || navigator.webkitConnection || navigator.mozConnection;
+    const isSlowOrDataSaver = !!conn && (conn.saveData || ['slow-2g', '2g', '3g'].includes(conn.effectiveType));
+
+    if (prefersReducedMotion || isSlowOrDataSaver) {
+        return; // se queda en el poster, sin gastar datos en el video
+    }
+
+    let shouldBePlaying = false;
+    let started = false;
+
+    function startLoading() {
+        if (started) return;
+        started = true;
+        source.src = source.dataset.src;
+        video.load();
+        shouldBePlaying = true;
+        video.play().catch(() => { /* autoplay bloqueado por el navegador: se queda en el poster, sin error visible */ });
+    }
+
+    // Espera a que termine de cargar todo lo demás (fuentes, imágenes, el
+    // catálogo) antes de sumar la descarga del video a la cola de red.
+    if (document.readyState === 'complete') {
+        startLoading();
+    } else {
+        window.addEventListener('load', startLoading, { once: true });
+    }
+
+    // Pausar/reanudar según visibilidad de la pestaña.
+    document.addEventListener('visibilitychange', () => {
+        if (!started) return;
+        if (document.hidden) video.pause();
+        else if (shouldBePlaying) video.play().catch(() => {});
+    });
+
+    // Pausar/reanudar según si el Hero está en pantalla (ahorra batería/CPU
+    // mientras el visitante mira el catálogo más abajo).
+    if ('IntersectionObserver' in window) {
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (!started) return;
+                if (entry.isIntersecting) {
+                    if (shouldBePlaying && !document.hidden) video.play().catch(() => {});
+                } else {
+                    video.pause();
+                }
+            });
+        }, { threshold: 0.1 });
+        observer.observe(video);
+    }
+})();
+
+// ==========================================
 // VIDEO DEL BANNER: fundido para disimular el corte del loop
 // ==========================================
 (function setupHeroVideoLoopFade() {

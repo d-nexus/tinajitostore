@@ -9,6 +9,8 @@
     <link rel="preconnect" href="https://rdjamvejcippipjjrplc.supabase.co">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preload" as="image" href="image/Tinajito.png" fetchpriority="high">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap">
     <title>TinajitoStore | Tienda Online con Afiliados y WhatsApp</title>
     <meta name="description" content="TinajitoStore: bazar online de tecnología, audio, moda y accesorios. Pide por WhatsApp y usa códigos de descuento de nuestros embajadores.">
     <link rel="canonical" href="https://d-nexus.github.io/tinajitostore/">
@@ -165,8 +167,8 @@
         <!-- HERO SECTION -->
         <section class="text-white py-20 lg:py-28 relative overflow-hidden border-b border-slate-800 bg-slate-950">
             <!-- Video Background -->
-            <video id="hero-video" autoplay muted loop playsinline preload="auto" poster="image/Tinajito.png" class="absolute inset-0 w-full h-full object-cover object-center z-0 hero-video-perf opacity-0 transition-opacity duration-700" oncanplaythrough="this.classList.remove('opacity-0')">
-                <source src="image/tinajitobanner.mp4" type="video/mp4">
+            <video id="hero-video" muted loop playsinline preload="none" poster="image/Tinajito.png" disablepictureinpicture disableremoteplayback class="absolute inset-0 w-full h-full object-cover object-center z-0 hero-video-perf opacity-0 transition-opacity duration-700" oncanplaythrough="this.classList.remove('opacity-0')">
+                <source data-src="image/tinajitobanner.mp4" type="video/mp4">
             </video>
             <!-- Dark Overlay -->
             <div class="absolute inset-0 bg-slate-950/70 z-10"></div>
@@ -902,6 +904,11 @@
                 <span class="text-lg font-bold text-white tracking-tight">TinajitoStore & More</span>
                 <p class="text-sm mt-1 text-slate-400">Tienda online con sistema de referidos y pedidos por WhatsApp.</p>
                 <p class="text-xs text-slate-500 font-medium mt-2">Desarrollado por <a href="https://d-nexus.github.io/dnexus/" target="_blank" rel="noopener noreferrer" class="text-emerald-400 hover:text-emerald-300 transition-colors font-semibold">D-Nexus</a></p>
+            </div>
+            <div class="flex flex-col items-center md:items-start gap-1.5 text-sm">
+                <a href="terminos.html" class="text-slate-400 hover:text-emerald-400 transition-colors">Términos y Condiciones</a>
+                <a href="privacidad.html" class="text-slate-400 hover:text-emerald-400 transition-colors">Política de Privacidad</a>
+                <a href="cambios-devoluciones.html" class="text-slate-400 hover:text-emerald-400 transition-colors">Cambios y Devoluciones</a>
             </div>
             <div class="text-sm text-slate-500 flex items-center justify-center md:justify-start space-x-2">
                 <span>&copy; 2026 TinajitoStore. Todos los derechos reservados.</span>

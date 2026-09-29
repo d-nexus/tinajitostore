@@ -1,4 +1,8 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+/* La tipografía Inter ya no se carga aquí con @import: eso obligaba al
+   navegador a esperar a bajar este CSS, parsearlo, y solo ENTONCES pedir la
+   hoja de Google Fonts (una petición completa de más antes de poder pedir
+   la fuente). Ahora se pide directamente desde el <head> del HTML, en
+   paralelo con todo lo demás, así el texto del Hero se pinta antes. */
 
 body {
     font-family: 'Inter', sans-serif;

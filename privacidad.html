@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="es" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://cdn.tailwindcss.com; connect-src 'self' https://rdjamvejcippipjjrplc.supabase.co https://*.supabase.co; img-src 'self' data: https:; style-src 'self' 'unsafe-inline' https:;">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap">
+    <title>Política de Privacidad | TinajitoStore</title>
+    <meta name="description" content="Cómo TinajitoStore recopila, usa y protege tus datos personales.">
+    <link rel="canonical" href="https://d-nexus.github.io/tinajitostore/privacidad.html">
+    <meta name="robots" content="index, follow">
+    <link rel="icon" type="image/png" href="image/favicon.png">
+    <link rel="apple-touch-icon" href="image/favicon.png">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: { extend: { colors: { slate: {
+                50:'#f8fafc',100:'#f1f5f9',200:'#e2e8f0',300:'#cbd5e1',400:'#94a3b8',
+                500:'#64748b',600:'#475569',700:'#334155',800:'#1e293b',900:'#0f172a',950:'#020617'
+            } } } }
+        };
+    </script>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body class="bg-slate-950 text-slate-100 antialiased min-h-screen flex flex-col">
+
+    <!-- HEADER simple (sin buscador/carrito: estas son páginas de solo lectura) -->
+    <header class="sticky top-0 z-40 bg-slate-950/90 backdrop-blur-md border-b border-slate-800 shadow-2xl">
+        <div class="max-w-3xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
+            <a href="index.html" class="flex items-center space-x-2.5 group">
+                <img src="image/Tinajito.png" alt="TinajitoStore Logo" class="w-10 h-10 rounded-full object-cover shadow-md group-hover:scale-105 transition-transform duration-300 border border-slate-700">
+                <span class="text-lg font-black tracking-tight text-white">Tinajito<span class="text-emerald-400">Store</span></span>
+            </a>
+            <a href="index.html" class="text-xs sm:text-sm font-semibold text-emerald-400 hover:text-emerald-300 transition-colors">&larr; Volver a la tienda</a>
+        </div>
+    </header>
+
+
+    <style>
+        .prose-legal h2 { font-size: 1.25rem; font-weight: 800; color: #fff; margin-bottom: 0.75rem; padding-top: 0.5rem; }
+        .prose-legal h3 { font-size: 1.05rem; font-weight: 700; color: #e2e8f0; margin: 1rem 0 0.5rem; }
+        .prose-legal p { margin-bottom: 0.75rem; }
+        .prose-legal ul { list-style: disc; padding-left: 1.4rem; margin-bottom: 0.75rem; }
+        .prose-legal ul li { margin-bottom: 0.4rem; }
+        .prose-legal a { color: #34d399; text-decoration: underline; text-underline-offset: 2px; }
+        .fill { background: rgba(245,158,11,0.15); color: #fcd34d; padding: 0.05rem 0.4rem; border-radius: 0.35rem; font-weight: 600; }
+        .lawbox { background: rgba(15,23,42,0.6); border: 1px solid #1e293b; border-radius: 1rem; padding: 1rem 1.25rem; font-size: 0.875rem; color: #94a3b8; }
+    </style>
+
+    <div class="max-w-3xl mx-auto w-full px-4 sm:px-6 pt-8">
+        <div class="bg-amber-500/10 border border-amber-500/20 text-amber-200 text-sm rounded-2xl p-4 sm:p-5 leading-relaxed">
+            <strong class="block text-amber-300 mb-1">Antes de publicar esta página</strong>
+            Este texto es una guía general basada en la normativa cubana vigente (Ley 149/2022 "De Protección de Datos Personales", Resolución 54/2018 del MINCIN y el Código Civil, Ley 59/1987), pensada para un negocio pequeño que vende por WhatsApp. No sustituye asesoría de un abogado. Revísalo y complétalo — todo lo resaltado en <span class="bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded font-semibold">ámbar</span> es un dato que solo tú puedes llenar (o decidir si aplica).
+        </div>
+    </div>
+
+    <main class="flex-1 max-w-3xl mx-auto w-full px-4 sm:px-6 py-10">
+        <h1 class="text-3xl sm:text-4xl font-extrabold text-white tracking-tight">Política de Privacidad</h1>
+        <p class="text-sm text-slate-500 mt-2">Última actualización: <span class="bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded font-semibold">[completa la fecha]</span></p>
+
+        <article class="prose-legal mt-8 space-y-8 text-slate-300 leading-relaxed">
+
+            <section>
+                <h2>1. Quién es responsable de tus datos</h2>
+                <p>
+                    <span class="fill">[nombre completo del responsable / razón social]</span> es quien
+                    administra TinajitoStore y decide para qué se usan los datos personales que recopila este
+                    sitio, de acuerdo con la Ley 149/2022 "De Protección de Datos Personales" de la República
+                    de Cuba.
+                </p>
+            </section>
+
+            <section>
+                <h2>2. Qué datos recopilamos</h2>
+                <ul>
+                    <li><strong>Al hacer un pedido:</strong> nombre, número de teléfono, dirección de entrega y forma de pago elegida.</li>
+                    <li><strong>Al usar un código de afiliado:</strong> el código y, si aplica, el nombre asociado a ese código.</li>
+                    <li><strong>Si te registras como afiliado:</strong> tu nombre, un código único y un PIN de acceso. El PIN nunca se guarda como texto: se guarda cifrado (hash), de forma que ni siquiera el administrador del sitio puede verlo.</li>
+                    <li><strong>Datos técnicos básicos del navegador</strong> (como el carrito de compra y el código de afiliado activo) guardados únicamente en tu propio dispositivo, no en nuestros servidores.</li>
+                </ul>
+                <p>No recopilamos datos de pago (números de tarjeta, cuentas bancarias) a través del sitio: eso se coordina directamente por WhatsApp.</p>
+            </section>
+
+            <section>
+                <h2>3. Para qué usamos tus datos</h2>
+                <ul>
+                    <li>Armar y enviar tu pedido por WhatsApp a nuestro número de contacto.</li>
+                    <li>Aplicar el descuento del afiliado que hayas usado y, si corresponde, calcular su comisión.</li>
+                    <li>Llevar el registro interno de ventas para fines administrativos y contables del negocio.</li>
+                </ul>
+                <p>No usamos tus datos para enviarte publicidad no solicitada, ni los vendemos ni los alquilamos a terceros.</p>
+            </section>
+
+            <section>
+                <h2>4. Dónde se guardan tus datos</h2>
+                <p>
+                    El catálogo, los afiliados y el historial de ventas se guardan en <strong>Supabase</strong>,
+                    un proveedor de base de datos con servidores fuera de Cuba. Esto significa que tus datos
+                    viajan y se almacenan en otro país. El acceso a esa información está protegido con
+                    políticas de seguridad (RLS) que solo permiten leer o modificar cada tabla a quien
+                    corresponde: el catálogo es público porque es lo que ves en la tienda, pero los datos de
+                    afiliados y ventas solo los puede consultar la cuenta de administrador.
+                </p>
+            </section>
+
+            <section>
+                <h2>5. Con quién se comparten tus datos</h2>
+                <p>
+                    Tu nombre, teléfono y dirección se comparten con nuestro número de WhatsApp (operado por
+                    Meta/WhatsApp Inc.) en el momento en que envías el pedido, ya que así funciona la
+                    integración: el mensaje se abre directamente en la app de WhatsApp. El tratamiento que
+                    WhatsApp haga de esa conversación se rige por sus propios términos, ajenos a TinajitoStore.
+                </p>
+            </section>
+
+            <section>
+                <h2>6. Cuánto tiempo conservamos tus datos</h2>
+                <p>
+                    Los pedidos y comisiones de afiliados se conservan mientras el negocio los necesite con
+                    fines administrativos y contables. Si quieres que eliminemos tu información de afiliado o
+                    tu historial de pedidos asociado a tu número, puedes solicitarlo por WhatsApp o al correo
+                    de contacto.
+                </p>
+            </section>
+
+            <section>
+                <h2>7. Tus derechos</h2>
+                <p>De acuerdo con la Ley 149/2022, tienes derecho a:</p>
+                <ul>
+                    <li>Saber qué datos tuyos tenemos guardados.</li>
+                    <li>Pedir que se corrijan si están equivocados.</li>
+                    <li>Pedir que se eliminen, salvo que necesitemos conservarlos por una obligación legal o contable pendiente.</li>
+                    <li>Retirar tu consentimiento para el uso de tu código de afiliado en cualquier momento.</li>
+                </ul>
+                <p>Para ejercer cualquiera de estos derechos, escríbenos por WhatsApp o al correo <span class="fill">[correo de contacto]</span>.</p>
+            </section>
+
+            <section>
+                <h2>8. Menores de edad</h2>
+                <p>
+                    Este sitio no está dirigido a menores de edad. Si un menor nos comparte datos personales,
+                    debe hacerlo bajo la supervisión y con la autorización de un padre, madre o tutor, conforme
+                    al interés superior del menor que establece la Ley 149/2022.
+                </p>
+            </section>
+
+            <section>
+                <h2>9. Cambios a esta política</h2>
+                <p>
+                    Si actualizamos esta política, lo indicaremos cambiando la fecha en la parte superior de
+                    esta página.
+                </p>
+            </section>
+
+            <section>
+                <h2>10. Contacto</h2>
+                <p>
+                    Para cualquier duda sobre el tratamiento de tus datos, escríbenos por WhatsApp o al correo
+                    <span class="fill">[correo de contacto]</span>.
+                </p>
+            </section>
+        </article>
+    </main>
+
+    <!-- FOOTER -->
+    <footer class="bg-slate-950 text-slate-400 py-12 border-t border-slate-800 shadow-inner">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row items-center justify-between gap-6 text-center md:text-left">
+            <div>
+                <span class="text-lg font-bold text-white tracking-tight">TinajitoStore & More</span>
+                <p class="text-sm mt-1 text-slate-400">Tienda online con sistema de referidos y pedidos por WhatsApp.</p>
+                <p class="text-xs text-slate-500 font-medium mt-2">Desarrollado por <a href="https://d-nexus.github.io/dnexus/" target="_blank" rel="noopener noreferrer" class="text-emerald-400 hover:text-emerald-300 transition-colors font-semibold">D-Nexus</a></p>
+            </div>
+            <div class="flex flex-col items-center md:items-start gap-1.5 text-sm">
+                <a href="terminos.html" class="text-slate-400 hover:text-emerald-400 transition-colors">Términos y Condiciones</a>
+                <a href="privacidad.html" class="text-slate-400 hover:text-emerald-400 transition-colors">Política de Privacidad</a>
+                <a href="cambios-devoluciones.html" class="text-slate-400 hover:text-emerald-400 transition-colors">Cambios y Devoluciones</a>
+            </div>
+            <div class="text-sm text-slate-500 flex items-center justify-center md:justify-start space-x-2">
+                <span>&copy; 2026 TinajitoStore. Todos los derechos reservados.</span>
+                <a href="index.html#admin" class="text-slate-600 hover:text-emerald-400 text-xs transition-colors ml-1" title="Panel de Administración" aria-label="Panel de Administración">⚙️</a>
+            </div>
+        </div>
+    </footer>
+
+</body>
+</html>
