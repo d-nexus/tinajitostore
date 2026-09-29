@@ -316,6 +316,17 @@ function setupGlobalEvents() {
     document.getElementById('category-form').addEventListener('submit', handleSaveCategory);
 
     document.getElementById('add-affiliate-btn').addEventListener('click', () => openAffiliateModal());
+
+    // Detalle de pedido + exportación CSV (panel admin)
+    const exportCsvBtn = document.getElementById('export-sales-csv-btn');
+    if (exportCsvBtn) exportCsvBtn.addEventListener('click', () => exportSalesCSV());
+    const orderDetailModal = document.getElementById('order-detail-modal');
+    if (orderDetailModal) {
+        orderDetailModal.addEventListener('click', (e) => { if (e.target === orderDetailModal) closeOrderDetail(); });
+        const closeDetailBtn = document.getElementById('close-order-detail-btn');
+        if (closeDetailBtn) closeDetailBtn.addEventListener('click', closeOrderDetail);
+        document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeOrderDetail(); });
+    }
     document.getElementById('affiliate-form').addEventListener('submit', handleSaveAffiliate);
 
     const portalBtn = document.getElementById('btnEmbajadores');
@@ -961,20 +972,35 @@ async function sendWhatsAppOrder(e) {
 
     const whatsappUrl = `https://wa.me/${STORE_WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`;
 
-    document.getElementById('checkout-modal').classList.add('hidden');
-    document.getElementById('checkout-modal').classList.remove('flex');
+    // 1) WhatsApp se abre PRIMERO, en el mismo instante del toque. En móvil, cualquier
+    //    trabajo previo que falle o tarde puede hacer que el navegador lo bloquee.
+    let waWindow = null;
+    try { waWindow = window.open(whatsappUrl, '_blank'); } catch (err) { console.error('window.open falló:', err); }
+    const blocked = !waWindow || waWindow.closed;
 
-    // El carrito se vacía porque el pedido ya quedó armado en el mensaje;
-    // si el cliente vuelve, no debería reencontrarse el mismo pedido "a medias".
-    // El código de afiliado tampoco debe seguir aplicado a la siguiente compra.
-    cart = [];
-    setStorage('cart', cart);
-    clearActiveAffiliate();
-    updateCartUI();
-    toggleCart(); // cierra el panel del carrito si estaba abierto
+    // 2) Limpieza de la interfaz. Va en try/catch: si algo aquí fallara, el pedido igual ya salió.
+    try {
+        document.getElementById('checkout-modal').classList.add('hidden');
+        document.getElementById('checkout-modal').classList.remove('flex');
 
-    window.open(whatsappUrl, '_blank');
-    showOrderConfirmation(orderRef);
+        // El carrito se vacía porque el pedido ya quedó armado en el mensaje;
+        // el código de afiliado tampoco debe seguir aplicado a la siguiente compra.
+        cart = [];
+        setStorage('cart', cart);
+        clearActiveAffiliate();
+        updateCartUI();
+
+        // El carrito ya suele estar cerrado (se cierra al abrir el checkout): solo cerrar si sigue abierto.
+        const drawer = document.getElementById('cart-drawer');
+        if (drawer && drawer.classList.contains('translate-x-0')) toggleCart();
+    } catch (err) {
+        console.error('Error limpiando la interfaz tras el pedido:', err);
+    }
+
+    // 3) Pantalla de confirmación con un enlace real a WhatsApp: si el navegador bloqueó
+    //    la ventana (Safari/iOS, navegadores integrados de Instagram/Facebook/WhatsApp...),
+    //    el cliente lo abre con un toque, que siempre funciona.
+    showOrderConfirmation(orderRef, whatsappUrl, blocked);
 
     salePromise.then(ok => {
         if (!ok) showToast('El pedido salió por WhatsApp, pero no se pudo registrar en el sistema. Se reintentará automáticamente.');
@@ -1025,10 +1051,18 @@ function buildOrderReference() {
 }
 
 // Pantalla simple de "pedido enviado" tras abrir WhatsApp.
-function showOrderConfirmation(orderRef) {
+function showOrderConfirmation(orderRef, whatsappUrl, blocked) {
     const modal = document.getElementById('order-confirmation-modal');
     if (!modal) return;
     document.getElementById('order-confirmation-ref').textContent = orderRef;
+    const link = document.getElementById('order-confirmation-wa-link');
+    if (link && whatsappUrl) link.href = whatsappUrl;
+    const msg = document.getElementById('order-confirmation-msg');
+    if (msg) {
+        msg.textContent = blocked
+            ? 'Tu navegador no abrió WhatsApp automáticamente. Toca el botón verde para enviar tu pedido.'
+            : 'Se abrió WhatsApp con los detalles. Si no se abrió, toca el botón verde de abajo para enviarlo.';
+    }
     modal.classList.remove('hidden');
     modal.classList.add('flex');
 }
@@ -1200,12 +1234,16 @@ function renderAdminSalesList() {
         } else {
             actions = btn('Reabrir', `adminSetSaleStatus(${id},'pendiente')`, 'bg-slate-700 hover:bg-slate-600 text-slate-200');
         }
+        const waBtn = buildClientWhatsAppUrl(s)
+            ? ` <button onclick="contactClientWhatsApp(${id})" title="Escribir al cliente por WhatsApp" aria-label="Escribir al cliente por WhatsApp" class="px-2.5 py-1 rounded-lg bg-[#25D366] hover:bg-[#20ba5a] text-white text-xs font-bold">💬</button>`
+            : '';
+        actions = btn('Detalle', `openOrderDetail(${id})`, 'bg-slate-700 hover:bg-slate-600 text-slate-200') + waBtn + ' ' + actions;
         const label = st === 'confirmada' && s.comision_pagada ? 'Pagada' : st.charAt(0).toUpperCase() + st.slice(1);
         return `
             <tr class="hover:bg-slate-800/50 transition-colors">
                 <td class="px-6 py-4"><span class="block font-bold text-white">#${id}</span><span class="block text-[11px] text-slate-400">${s.fecha ? new Date(s.fecha).toLocaleString() : ''}</span></td>
                 <td class="px-6 py-4 font-mono font-bold ${s.codigo ? 'text-white' : 'text-slate-500'}">${s.codigo ? escapeHtml(s.codigo) : 'Directa'}</td>
-                <td class="px-6 py-4 text-slate-300"><span class="block">${escapeHtml(s.cliente || 'Cliente General')}</span>${s.order_ref ? `<span class="block text-[11px] text-slate-500 font-mono">${escapeHtml(s.order_ref)}</span>` : ''}</td>
+                <td class="px-6 py-4 text-slate-300"><span class="block">${escapeHtml(s.cliente || 'Cliente General')}</span>${s.order_ref ? `<span class="block text-[11px] text-slate-500 font-mono">${escapeHtml(s.order_ref)}</span>` : ''}${saleField(s, 'telefono') ? `<span class="block text-[11px] text-slate-400">📱 ${escapeHtml(saleField(s, 'telefono'))}</span>` : ''}</td>
                 <td class="px-6 py-4 text-white font-bold">$${Number(s.monto_venta).toFixed(2)}</td>
                 <td class="px-6 py-4 text-indigo-400 font-bold">$${Number(s.comision_ganada).toFixed(2)}</td>
                 <td class="px-6 py-4 text-center"><span class="${badges[st] || badges.pendiente} font-bold px-3 py-1 rounded-full text-xs">${label}</span></td>
@@ -1213,6 +1251,250 @@ function renderAdminSalesList() {
             </tr>`;
     }).join('');
 }
+
+// --- DETALLE DE PEDIDO, WHATSAPP AL CLIENTE Y EXPORTACIÓN CSV ---
+// Los datos del cliente (teléfono, dirección, pago) y los productos viven en la fila de
+// "sales" y solo los ve el admin (RLS). El portal de afiliados NO los recibe.
+const SALE_FIELD_ALIASES = {
+    telefono: ['telefono', 'cliente_telefono', 'phone'],
+    direccion: ['direccion', 'cliente_direccion', 'address'],
+    pago: ['pago', 'metodo_pago', 'payment']
+};
+function saleField(s, key) {
+    for (const k of (SALE_FIELD_ALIASES[key] || [key])) {
+        if (s[k] !== undefined && s[k] !== null && String(s[k]).trim() !== '') return String(s[k]).trim();
+    }
+    return '';
+}
+
+// Deja solo dígitos en formato internacional para wa.me. Un número de 8 dígitos
+// (móvil cubano escrito sin prefijo) recibe el 53. Devuelve '' si no parece un teléfono.
+function normalizePhoneForWhatsApp(raw) {
+    let d = String(raw || '').replace(/\D/g, '');
+    if (d.startsWith('00')) d = d.slice(2);
+    if (d.length === 8) d = '53' + d;
+    return d.length >= 10 ? d : '';
+}
+
+// Productos del pedido, tolerante con los nombres de campo (items/productos/detalle...).
+function getSaleItems(s) {
+    let raw = s.items ?? s.productos ?? s.detalle ?? s.detalle_items ?? s.articulos ?? null;
+    if (typeof raw === 'string') { try { raw = JSON.parse(raw); } catch (e) { raw = null; } }
+    if (!Array.isArray(raw)) return [];
+    return raw.map(it => {
+        const pid = it.id ?? it.product_id ?? it.producto_id;
+        const qty = Number(it.quantity ?? it.cantidad ?? it.qty ?? 1) || 1;
+        const priceRaw = it.price ?? it.precio ?? it.precio_unitario ?? it.unit_price;
+        const price = (priceRaw === undefined || priceRaw === null || priceRaw === '') ? null : Number(priceRaw);
+        let name = it.name ?? it.nombre ?? it.producto ?? it.product_name ?? '';
+        if (!name) {
+            const p = products.find(x => x.id === pid);
+            name = p ? p.name : `Producto #${pid ?? '?'}`;
+        }
+        return { name: String(name), qty, price: Number.isFinite(price) ? price : null };
+    });
+}
+
+function buildClientWhatsAppUrl(s) {
+    const phone = normalizePhoneForWhatsApp(saleField(s, 'telefono'));
+    if (!phone) return '';
+    const items = getSaleItems(s);
+    const nombre = (s.cliente && s.cliente !== 'Cliente General') ? ` ${s.cliente}` : '';
+    let msg = `Hola${nombre}, te escribimos de TinajitoStore por tu pedido${s.order_ref ? ` (Ref. ${s.order_ref})` : ''}.`;
+    if (items.length) msg += '\n\n' + items.map(i => `• ${i.qty} x ${i.name}`).join('\n');
+    msg += `\n\nTotal: $${Number(s.monto_venta || 0).toFixed(2)}`;
+    return `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`;
+}
+
+window.contactClientWhatsApp = function (id) {
+    const s = salesHistory.find(x => Number(x.id) === Number(id));
+    const url = s ? buildClientWhatsAppUrl(s) : '';
+    if (!url) { showToast('Este pedido no tiene un teléfono válido'); return; }
+    window.open(url, '_blank', 'noopener');
+};
+
+window.openOrderDetail = function (id) {
+    const s = salesHistory.find(x => Number(x.id) === Number(id));
+    const modal = document.getElementById('order-detail-modal');
+    if (!s || !modal) return;
+
+    const st = estadoDe(s);
+    const badges = {
+        pendiente: 'bg-amber-500/10 text-amber-400',
+        confirmada: 'bg-emerald-500/10 text-emerald-400',
+        cancelada: 'bg-rose-500/10 text-rose-400'
+    };
+    const statusLabel = st === 'confirmada' && s.comision_pagada ? 'Comisión pagada' : st.charAt(0).toUpperCase() + st.slice(1);
+    const money = v => `$${Number(v || 0).toFixed(2)}`;
+    const dash = '<span class="text-slate-600">—</span>';
+    const field = (label, value) => `
+        <div>
+            <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">${label}</p>
+            <p class="text-sm text-white font-medium break-words">${value || dash}</p>
+        </div>`;
+
+    const phone = saleField(s, 'telefono');
+    const address = saleField(s, 'direccion');
+    const payment = saleField(s, 'pago');
+    const items = getSaleItems(s);
+
+    let itemsHtml;
+    if (items.length === 0) {
+        itemsHtml = `<p class="text-sm text-slate-500 bg-slate-950 border border-slate-800 rounded-xl px-4 py-3">Este pedido no tiene el detalle de productos guardado.</p>`;
+    } else {
+        const allPriced = items.every(i => i.price !== null);
+        const itemsSubtotal = allPriced ? items.reduce((acc, i) => acc + i.price * i.qty, 0) : null;
+        const discount = (itemsSubtotal !== null) ? itemsSubtotal - Number(s.monto_venta || 0) : 0;
+        itemsHtml = `
+            <div class="overflow-x-auto rounded-xl border border-slate-800">
+                <table class="w-full text-left text-sm">
+                    <thead>
+                        <tr class="bg-slate-950 text-slate-400 uppercase text-[11px] font-bold tracking-wider">
+                            <th class="px-4 py-2.5">Producto</th>
+                            <th class="px-4 py-2.5 text-center">Cant.</th>
+                            <th class="px-4 py-2.5 text-right">Precio</th>
+                            <th class="px-4 py-2.5 text-right">Subtotal</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-800">
+                        ${items.map(i => `
+                        <tr>
+                            <td class="px-4 py-2.5 text-white font-medium">${escapeHtml(i.name)}</td>
+                            <td class="px-4 py-2.5 text-center text-slate-300">${i.qty}</td>
+                            <td class="px-4 py-2.5 text-right text-slate-300">${i.price !== null ? money(i.price) : dash}</td>
+                            <td class="px-4 py-2.5 text-right text-white font-bold">${i.price !== null ? money(i.price * i.qty) : dash}</td>
+                        </tr>`).join('')}
+                    </tbody>
+                </table>
+            </div>
+            ${discount > 0.005 ? `<p class="text-xs text-emerald-400 font-medium mt-2 text-right">Descuento aplicado: -${money(discount)}</p>` : ''}`;
+    }
+
+    document.getElementById('order-detail-body').innerHTML = `
+        <div class="pr-10 mb-6">
+            <div class="flex flex-wrap items-center gap-2">
+                <h3 class="text-xl font-bold text-white">Pedido #${Number(s.id)}</h3>
+                <span class="${badges[st] || badges.pendiente} font-bold px-3 py-1 rounded-full text-xs">${escapeHtml(statusLabel)}</span>
+            </div>
+            <p class="text-xs text-slate-400 mt-1">${s.fecha ? escapeHtml(new Date(s.fecha).toLocaleString()) : ''}${s.order_ref ? ` · <span class="font-mono">${escapeHtml(s.order_ref)}</span>` : ''}</p>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 mb-6">
+            ${field('Cliente', escapeHtml(s.cliente || 'Cliente General'))}
+            ${field('Teléfono', phone ? escapeHtml(phone) : '')}
+            ${field('Dirección de entrega', address ? escapeHtml(address) : '')}
+            ${field('Método de pago', payment ? escapeHtml(payment) : '')}
+            ${field('Afiliado', s.codigo ? `<span class="font-mono">${escapeHtml(s.codigo)}</span>${s.nombre ? ' · ' + escapeHtml(s.nombre) : ''}` : 'Venta directa')}
+        </div>
+        <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">Productos</p>
+        ${itemsHtml}
+        <div class="mt-5 pt-4 border-t border-slate-800 space-y-1.5 text-sm">
+            <div class="flex justify-between text-base font-bold text-white"><span>Total del pedido</span><span>${money(s.monto_venta)}</span></div>
+            <div class="flex justify-between text-slate-400"><span>Comisión del afiliado</span><span class="text-indigo-400 font-semibold">${money(s.comision_ganada)}</span></div>
+            <div class="flex justify-between text-slate-400"><span>Tu ganancia</span><span class="text-emerald-400 font-semibold">${money(s.ganancia)}</span></div>
+        </div>`;
+
+    const waBtn = document.getElementById('order-detail-wa-btn');
+    const waUrl = buildClientWhatsAppUrl(s);
+    if (waBtn) {
+        if (waUrl) { waBtn.href = waUrl; waBtn.classList.remove('hidden'); }
+        else { waBtn.removeAttribute('href'); waBtn.classList.add('hidden'); }
+    }
+
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+};
+
+window.closeOrderDetail = function () {
+    const modal = document.getElementById('order-detail-modal');
+    if (!modal) return;
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+};
+
+// Excel en español usa ";" como separador de columnas y "," como decimal.
+// Si tu Excel abre el archivo en una sola columna, cambia esto a ','.
+const CSV_DELIMITER = ';';
+
+// Texto: se protege contra "inyección de fórmulas" (=, +, -, @) y se entrecomilla si hace falta.
+function csvText(v) {
+    let t = String(v ?? '');
+    if (/^[=+\-@\t\r]/.test(t)) t = "'" + t;
+    if (t.includes(CSV_DELIMITER) || /["\n\r]/.test(t)) t = '"' + t.replace(/"/g, '""') + '"';
+    return t;
+}
+function csvNum(v) {
+    const t = Number(v || 0).toFixed(2);
+    return CSV_DELIMITER === ';' ? t.replace('.', ',') : t;
+}
+function csvDate(v) {
+    if (!v) return '';
+    const d = new Date(v);
+    if (isNaN(d)) return String(v);
+    return d.toLocaleString('sv-SE', { timeZone: 'America/Havana' }); // AAAA-MM-DD HH:MM:SS, hora de Cuba
+}
+
+window.exportSalesCSV = async function () {
+    const btn = document.getElementById('export-sales-csv-btn');
+    const original = btn ? btn.textContent : '';
+    if (btn) { btn.disabled = true; btn.textContent = 'Exportando…'; }
+    try {
+        // Se pide todo a la base (no solo las 50 filas visibles), en páginas de 1000.
+        const rows = [];
+        const PAGE = 1000;
+        for (let from = 0; ; from += PAGE) {
+            const { data, error } = await supabase.from('sales').select('*')
+                .order('fecha', { ascending: false }).order('id', { ascending: false })
+                .range(from, from + PAGE - 1);
+            if (error) throw error;
+            rows.push(...(data || []));
+            if (!data || data.length < PAGE) break;
+        }
+        if (rows.length === 0) { showToast('No hay ventas para exportar'); return; }
+
+        const header = ['ID', 'Fecha', 'Referencia', 'Estado', 'Cliente', 'Teléfono', 'Dirección', 'Método de pago',
+            'Productos', 'Código afiliado', 'Afiliado', 'Monto venta', 'Comisión', 'Ganancia', 'Comisión pagada'];
+        const lines = [header.map(csvText).join(CSV_DELIMITER)];
+
+        rows.forEach(s => {
+            const items = getSaleItems(s).map(i => `${i.qty}x ${i.name}`).join(' | ');
+            lines.push([
+                csvText(s.id),
+                csvText(csvDate(s.fecha)),
+                csvText(s.order_ref || ''),
+                csvText(estadoDe(s)),
+                csvText(s.cliente || 'Cliente General'),
+                csvText(normalizePhoneForWhatsApp(saleField(s, 'telefono')) || saleField(s, 'telefono')),
+                csvText(saleField(s, 'direccion')),
+                csvText(saleField(s, 'pago')),
+                csvText(items),
+                csvText(s.codigo || ''),
+                csvText(s.codigo ? (s.nombre || '') : ''),
+                csvNum(s.monto_venta),
+                csvNum(s.comision_ganada),
+                csvNum(s.ganancia),
+                csvText(s.codigo ? (s.comision_pagada ? 'Sí' : 'No') : '')
+            ].join(CSV_DELIMITER));
+        });
+
+        // BOM UTF-8 para que Excel respete tildes y ñ.
+        const blob = new Blob(['\uFEFF' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const stamp = new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Havana' });
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `ventas-tinajitostore-${stamp}.csv`;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        showToast(`Exportadas ${rows.length} venta(s) a CSV`);
+    } catch (err) {
+        console.error('Error al exportar ventas:', err);
+        alert('No se pudo exportar: ' + (err.message || err));
+    } finally {
+        if (btn) { btn.disabled = false; btn.textContent = original; }
+    }
+};
 
 // --- REPORTE DE INGRESOS POR DÍA / MES / AÑO ---
 // Los números vienen agregados desde el servidor (admin_sales_report) en hora de Cuba.
