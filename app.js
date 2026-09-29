@@ -63,6 +63,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 2. Manejar las peticiones a Supabase de manera asíncrona sin bloquear la UI ni los eventos.
     initializeAppAsync();
+    flushPendingSales();
 });
 
 function showConnectionError(message) {
@@ -917,27 +918,30 @@ async function sendWhatsAppOrder(e) {
         affiliateInfoText = `🏷️ *Afiliado / Referido:* ${activeAffiliate.nombre}\n` +
                             `🔑 *Código:* ${activeAffiliate.codigo}\n` +
                             `📉 *Descuento Aplicado:* -$${discountAmount.toFixed(2)}\n`;
-
-        // El registro real de la venta y su comisión ocurre en el servidor
-        // (record_sale), que vuelve a calcular todo con los precios y el %
-        // guardados en la base de datos (descuento y comisión en % por afiliado): el navegador no puede inflar esto.
-        const { error } = await supabase.rpc('record_sale', {
-            p_codigo: activeAffiliate.codigo,
-            p_cliente: name || 'Cliente General',
-            p_items: cart.map(item => ({ id: item.id, quantity: item.quantity }))
-        });
-        if (error) {
-            console.error('No se pudo registrar la comisión del afiliado:', error.message);
-        }
     }
 
-    const finalTotal = Math.max(0, subtotal - discountAmount);
-
-    // Referencia solo para la conversación de WhatsApp: aún no existe una
-    // tabla de "pedidos" (solo se guardan ventas con código de afiliado),
-    // así que este número ayuda a identificar el pedido en el chat pero
-    // no está ligado a ningún registro en la base de datos.
+    // Referencia única del pedido: viaja en el mensaje de WhatsApp Y se guarda
+    // en la tabla "sales", así puedes cruzar el chat con el registro.
     const orderRef = buildOrderReference();
+
+    // Registro del pedido (con o sin afiliado). Se guarda como "pendiente";
+    // tú lo pasas a "confirmada" o "cancelada" desde el panel admin.
+    // El servidor recalcula precios, descuento y comisión: el navegador no puede inflarlos.
+    const salePayload = {
+        p_codigo: activeAffiliate ? activeAffiliate.codigo : null,
+        p_cliente: name || 'Cliente General',
+        p_items: cart.map(item => ({ id: item.id, quantity: item.quantity })),
+        p_order_ref: orderRef,
+        p_telefono: phone,
+        p_direccion: address,
+        p_pago: payment
+    };
+    // Se lanza ANTES de abrir WhatsApp pero sin "await": si esperáramos aquí,
+    // Safari/iOS y otros navegadores bloquean window.open por perder el gesto
+    // del clic. La petición sigue viva porque esta página no se cierra.
+    const salePromise = submitSaleWithRetry(salePayload);
+
+    const finalTotal = Math.max(0, subtotal - discountAmount);
 
     const itemsCount = cart.reduce((acc, item) => acc + item.quantity, 0);
 
@@ -971,6 +975,44 @@ async function sendWhatsAppOrder(e) {
 
     window.open(whatsappUrl, '_blank');
     showOrderConfirmation(orderRef);
+
+    salePromise.then(ok => {
+        if (!ok) showToast('El pedido salió por WhatsApp, pero no se pudo registrar en el sistema. Se reintentará automáticamente.');
+    });
+}
+
+// --- REGISTRO DE PEDIDOS CON REINTENTO ---
+// Si record_sale falla (sin conexión, error temporal), el pedido se guarda en
+// el navegador y se reintenta al abrir la tienda. Como cada pedido lleva su
+// order_ref único, reintentar NUNCA duplica una venta.
+async function submitSaleWithRetry(payload) {
+    try {
+        const { error } = await supabase.rpc('record_sale', payload);
+        if (error) throw error;
+        return true;
+    } catch (err) {
+        console.error('No se pudo registrar el pedido ' + payload.p_order_ref + ':', err.message || err);
+        const queue = getStorage('pending_sales', []);
+        if (!queue.some(q => q.p_order_ref === payload.p_order_ref)) {
+            queue.push(payload);
+            setStorage('pending_sales', queue);
+        }
+        return false;
+    }
+}
+
+async function flushPendingSales() {
+    if (!supabase) return;
+    const queue = getStorage('pending_sales', []);
+    if (queue.length === 0) return;
+    const remaining = [];
+    for (const payload of queue) {
+        const { error } = await supabase.rpc('record_sale', payload);
+        // Errores definitivos (producto borrado, código inexistente) se descartan para no reintentar eternamente.
+        const definitive = error && /no existe|no encontrado|no tiene productos/i.test(error.message || '');
+        if (error && !definitive) remaining.push(payload);
+    }
+    setStorage('pending_sales', remaining);
 }
 
 // Referencia corta y legible: TJ-AAMMDD-XXXX
@@ -1078,7 +1120,7 @@ async function renderAdminDashboard() {
     const statsByCode = {};
     salesHistory.forEach(s => {
         const st = estadoDe(s);
-        if (st === 'cancelada') return;
+        if (st === 'cancelada' || !s.codigo) return; // sin código = venta directa, no va en la tabla de afiliados
         if (!statsByCode[s.codigo]) {
             statsByCode[s.codigo] = { nombre: s.nombre, count: 0, pending: 0, revenue: 0, commission: 0, unpaid: 0, profit: 0 };
         }
@@ -1119,6 +1161,7 @@ async function renderAdminDashboard() {
     }
 
     renderAdminSalesList();
+    renderPeriodReport();
 }
 
 // --- Lista de ventas con acciones (confirmar / cancelar / pagar) ---
@@ -1147,6 +1190,8 @@ function renderAdminSalesList() {
         if (st === 'pendiente') {
             actions = btn('Confirmar', `adminSetSaleStatus(${id},'confirmada')`, 'bg-emerald-600 hover:bg-emerald-500 text-white')
                     + ' ' + btn('Cancelar', `adminSetSaleStatus(${id},'cancelada')`, 'bg-rose-600 hover:bg-rose-500 text-white');
+        } else if (st === 'confirmada' && !s.codigo) {
+            actions = btn('Cancelar', `adminSetSaleStatus(${id},'cancelada')`, 'bg-rose-600 hover:bg-rose-500 text-white');
         } else if (st === 'confirmada') {
             actions = (s.comision_pagada
                 ? btn('Deshacer pago', `adminSetCommissionPaid(${id},false)`, 'bg-slate-700 hover:bg-slate-600 text-slate-200')
@@ -1159,14 +1204,72 @@ function renderAdminSalesList() {
         return `
             <tr class="hover:bg-slate-800/50 transition-colors">
                 <td class="px-6 py-4"><span class="block font-bold text-white">#${id}</span><span class="block text-[11px] text-slate-400">${s.fecha ? new Date(s.fecha).toLocaleString() : ''}</span></td>
-                <td class="px-6 py-4 font-mono font-bold text-white">${escapeHtml(s.codigo)}</td>
-                <td class="px-6 py-4 text-slate-300">${escapeHtml(s.cliente || 'Cliente General')}</td>
+                <td class="px-6 py-4 font-mono font-bold ${s.codigo ? 'text-white' : 'text-slate-500'}">${s.codigo ? escapeHtml(s.codigo) : 'Directa'}</td>
+                <td class="px-6 py-4 text-slate-300"><span class="block">${escapeHtml(s.cliente || 'Cliente General')}</span>${s.order_ref ? `<span class="block text-[11px] text-slate-500 font-mono">${escapeHtml(s.order_ref)}</span>` : ''}</td>
                 <td class="px-6 py-4 text-white font-bold">$${Number(s.monto_venta).toFixed(2)}</td>
                 <td class="px-6 py-4 text-indigo-400 font-bold">$${Number(s.comision_ganada).toFixed(2)}</td>
                 <td class="px-6 py-4 text-center"><span class="${badges[st] || badges.pendiente} font-bold px-3 py-1 rounded-full text-xs">${label}</span></td>
                 <td class="px-6 py-4 text-right whitespace-nowrap">${actions}</td>
             </tr>`;
     }).join('');
+}
+
+// --- REPORTE DE INGRESOS POR DÍA / MES / AÑO ---
+// Los números vienen agregados desde el servidor (admin_sales_report) en hora de Cuba.
+// Solo las ventas CONFIRMADAS suman ingresos; las canceladas se muestran aparte.
+let reportPeriod = 'dia';
+
+window.setReportPeriod = function (period) {
+    reportPeriod = period;
+    document.querySelectorAll('.report-period-btn').forEach(b => {
+        const active = b.dataset.period === period;
+        b.classList.toggle('bg-indigo-600', active);
+        b.classList.toggle('text-white', active);
+        b.classList.toggle('bg-slate-800', !active);
+        b.classList.toggle('text-slate-300', !active);
+    });
+    renderPeriodReport();
+};
+
+async function renderPeriodReport() {
+    const tbody = document.getElementById('period-report-table');
+    if (!tbody) return;
+    const { data, error } = await supabase.rpc('admin_sales_report', { p_periodo: reportPeriod });
+    if (error) {
+        tbody.innerHTML = `<tr><td colspan="8" class="px-6 py-8 text-center text-rose-400">No se pudo cargar el reporte: ${escapeHtml(error.message)}. ¿Ya ejecutaste migracion-v4-ventas.sql?</td></tr>`;
+        return;
+    }
+    const rows = data || [];
+    if (rows.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="8" class="px-6 py-10 text-center text-slate-500">Aún no hay pedidos registrados.</td></tr>`;
+        return;
+    }
+    const m = v => `$${Number(v || 0).toFixed(2)}`;
+    tbody.innerHTML = rows.map(r => `
+        <tr class="hover:bg-slate-800/50 transition-colors">
+            <td class="px-6 py-4 font-bold text-white whitespace-nowrap">${escapeHtml(r.periodo)}</td>
+            <td class="px-6 py-4 text-center text-slate-300">${r.pedidos}</td>
+            <td class="px-6 py-4 text-center text-emerald-400 font-bold">${r.confirmadas}</td>
+            <td class="px-6 py-4 text-center text-amber-400 font-bold">${r.pendientes}</td>
+            <td class="px-6 py-4 text-center text-rose-400 font-bold">${r.canceladas}</td>
+            <td class="px-6 py-4 text-white font-extrabold">${m(r.ingresos)}</td>
+            <td class="px-6 py-4 text-indigo-400 font-bold">${m(r.comisiones)}</td>
+            <td class="px-6 py-4 text-emerald-400 font-extrabold">${m(r.ganancia)}</td>
+        </tr>`).join('');
+
+    // Fila de totales del listado mostrado
+    const sum = k => rows.reduce((a, r) => a + Number(r[k] || 0), 0);
+    tbody.innerHTML += `
+        <tr class="bg-slate-950 font-black text-white">
+            <td class="px-6 py-4">TOTAL</td>
+            <td class="px-6 py-4 text-center">${sum('pedidos')}</td>
+            <td class="px-6 py-4 text-center text-emerald-400">${sum('confirmadas')}</td>
+            <td class="px-6 py-4 text-center text-amber-400">${sum('pendientes')}</td>
+            <td class="px-6 py-4 text-center text-rose-400">${sum('canceladas')}</td>
+            <td class="px-6 py-4">${m(sum('ingresos'))}</td>
+            <td class="px-6 py-4 text-indigo-400">${m(sum('comisiones'))}</td>
+            <td class="px-6 py-4 text-emerald-400">${m(sum('ganancia'))}</td>
+        </tr>`;
 }
 
 async function adminRpcAndRefresh(fn, params, okMsg) {

@@ -274,7 +274,7 @@
                     <div class="bg-slate-900 p-6 rounded-3xl border border-slate-800 shadow-sm flex items-center space-x-4">
                         <div class="w-14 h-14 rounded-2xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center font-bold text-2xl">🛍️</div>
                         <div>
-                            <p class="text-xs font-bold text-slate-400 uppercase tracking-wider">Ventas con Referido</p>
+                            <p class="text-xs font-bold text-slate-400 uppercase tracking-wider">Ventas Confirmadas</p>
                             <h3 id="stat-total-sales" class="text-3xl font-black text-white mt-1">0</h3>
                         </div>
                     </div>
@@ -301,9 +301,41 @@
                     </div>
                 </div>
 
+                <!-- INGRESOS POR PERIODO -->
+                <div class="bg-slate-900 rounded-3xl border border-slate-800 shadow-sm overflow-hidden">
+                    <div class="p-6 border-b border-slate-800 flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                            <h3 class="font-bold text-lg text-white">Ingresos y Actividad</h3>
+                            <p class="text-xs text-slate-400 mt-0.5">Solo las ventas confirmadas suman ingresos y ganancia.</p>
+                        </div>
+                        <div class="flex gap-2">
+                            <button type="button" data-period="dia" onclick="setReportPeriod('dia')" class="report-period-btn px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 text-white">Por día</button>
+                            <button type="button" data-period="mes" onclick="setReportPeriod('mes')" class="report-period-btn px-4 py-2 rounded-xl text-xs font-bold bg-slate-800 text-slate-300">Por mes</button>
+                            <button type="button" data-period="anio" onclick="setReportPeriod('anio')" class="report-period-btn px-4 py-2 rounded-xl text-xs font-bold bg-slate-800 text-slate-300">Por año</button>
+                        </div>
+                    </div>
+                    <div class="overflow-x-auto max-h-[28rem] overflow-y-auto">
+                        <table class="w-full text-left border-collapse text-sm">
+                            <thead>
+                                <tr class="bg-slate-950 text-slate-400 uppercase text-[11px] font-bold tracking-wider border-b border-slate-800 sticky top-0">
+                                    <th class="px-6 py-4">Periodo</th>
+                                    <th class="px-6 py-4 text-center">Pedidos</th>
+                                    <th class="px-6 py-4 text-center">Confirmados</th>
+                                    <th class="px-6 py-4 text-center">Pendientes</th>
+                                    <th class="px-6 py-4 text-center">Cancelados</th>
+                                    <th class="px-6 py-4">Ingresos</th>
+                                    <th class="px-6 py-4">Comisiones</th>
+                                    <th class="px-6 py-4">Ganancia</th>
+                                </tr>
+                            </thead>
+                            <tbody id="period-report-table" class="divide-y divide-slate-800 text-slate-300"></tbody>
+                        </table>
+                    </div>
+                </div>
+
                 <div class="bg-slate-900 rounded-3xl border border-slate-800 shadow-sm overflow-hidden">
                     <div class="p-6 border-b border-slate-800 flex items-center justify-between">
-                        <h3 class="font-bold text-lg text-white">Historial de Ventas y Comisiones por Afiliado</h3>
+                        <h3 class="font-bold text-lg text-white">Comisiones por Afiliado</h3>
                         <span class="text-xs text-slate-400 font-semibold">Datos en tiempo real (Supabase)</span>
                     </div>
                     <div class="overflow-x-auto">
@@ -339,7 +371,7 @@
                                 <tr class="bg-slate-950 text-slate-400 uppercase text-[11px] font-bold tracking-wider border-b border-slate-800">
                                     <th class="px-6 py-4">Fecha / ID</th>
                                     <th class="px-6 py-4">Afiliado</th>
-                                    <th class="px-6 py-4">Cliente</th>
+                                    <th class="px-6 py-4">Cliente / Ref.</th>
                                     <th class="px-6 py-4">Monto</th>
                                     <th class="px-6 py-4">Comisión</th>
                                     <th class="px-6 py-4 text-center">Estado</th>
