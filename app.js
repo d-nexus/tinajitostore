@@ -296,6 +296,7 @@ function setupGlobalEvents() {
 
     document.getElementById('add-product-btn').addEventListener('click', () => openProductModal());
     document.getElementById('product-form').addEventListener('submit', handleSaveProduct);
+    document.getElementById('prod-image-file').addEventListener('change', handleProductImageUpload);
 
     const prodCatSelect = document.getElementById('prod-category');
     if (prodCatSelect) prodCatSelect.addEventListener('change', () => refreshProductSubcategoryOptions(''));
@@ -910,23 +911,68 @@ async function sendWhatsAppOrder(e) {
 
     const finalTotal = Math.max(0, subtotal - discountAmount);
 
-    const message = `🛍️ *NUEVO PEDIDO - TINAJITOSTORE* 🛍️\n\n` +
-        `👤 *Cliente:* ${name}\n` +
-        `📱 *Teléfono:* ${phone}\n` +
-        `📍 *Dirección:* ${address}\n` +
+    // Referencia solo para la conversación de WhatsApp: aún no existe una
+    // tabla de "pedidos" (solo se guardan ventas con código de afiliado),
+    // así que este número ayuda a identificar el pedido en el chat pero
+    // no está ligado a ningún registro en la base de datos.
+    const orderRef = buildOrderReference();
+
+    const itemsCount = cart.reduce((acc, item) => acc + item.quantity, 0);
+
+    const message = `🛍️ *NUEVO PEDIDO — TINAJITOSTORE*\n` +
+        `🔖 *Referencia:* ${orderRef}\n` +
+        `\n👤 *${name}*\n` +
+        `📱 ${phone}\n` +
+        `📍 ${address}\n` +
         `💳 *Pago:* ${payment}\n` +
         (affiliateInfoText ? `\n${affiliateInfoText}` : '') +
         `\n-----------------------------------\n` +
-        `📦 *DETALLE DEL PEDIDO:*\n\n${itemsText}\n\n` +
+        `📦 *DETALLE (${itemsCount} artículo${itemsCount === 1 ? '' : 's'}):*\n\n${itemsText}\n\n` +
         `-----------------------------------\n` +
-        `💰 *TOTAL FINAL: $${finalTotal.toFixed(2)}*\n\n` +
-        `¡Hola! Me gustaría confirmar este pedido. Quedo atento.`;
+        (discountAmount > 0 ? `Subtotal: $${subtotal.toFixed(2)}\nDescuento: -$${discountAmount.toFixed(2)}\n` : '') +
+        `💰 *TOTAL: $${finalTotal.toFixed(2)}*\n\n` +
+        `¡Hola! Quiero confirmar este pedido (Ref. ${orderRef}). Quedo atento 🙌`;
 
     const whatsappUrl = `https://wa.me/${STORE_WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`;
 
     document.getElementById('checkout-modal').classList.add('hidden');
     document.getElementById('checkout-modal').classList.remove('flex');
+
+    // El carrito se vacía porque el pedido ya quedó armado en el mensaje;
+    // si el cliente vuelve, no debería reencontrarse el mismo pedido "a medias".
+    cart = [];
+    setStorage('cart', cart);
+    updateCartUI();
+    toggleCart(); // cierra el panel del carrito si estaba abierto
+
     window.open(whatsappUrl, '_blank');
+    showOrderConfirmation(orderRef);
+}
+
+// Referencia corta y legible: TJ-AAMMDD-XXXX
+function buildOrderReference() {
+    const d = new Date();
+    const pad = n => String(n).padStart(2, '0');
+    const datePart = `${String(d.getFullYear()).slice(2)}${pad(d.getMonth() + 1)}${pad(d.getDate())}`;
+    const rand = Math.random().toString(36).slice(2, 6).toUpperCase();
+    return `TJ-${datePart}-${rand}`;
+}
+
+// Pantalla simple de "pedido enviado" tras abrir WhatsApp.
+function showOrderConfirmation(orderRef) {
+    const modal = document.getElementById('order-confirmation-modal');
+    if (!modal) return;
+    document.getElementById('order-confirmation-ref').textContent = orderRef;
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+}
+
+function closeOrderConfirmation() {
+    const modal = document.getElementById('order-confirmation-modal');
+    if (modal) {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    }
 }
 
 function showToast(text) {
@@ -1233,6 +1279,7 @@ function openProductModal(id = null) {
             document.getElementById('prod-original-price').value = p.originalPrice || '';
             document.getElementById('prod-badge').value = p.badge || '';
             document.getElementById('prod-image').value = p.image;
+            setProductImagePreview(p.image);
             document.getElementById('prod-desc').value = p.description;
         }
         const supplier = productSuppliers[id] || { nombre: '', telefono: '' };
@@ -1247,6 +1294,8 @@ function openProductModal(id = null) {
         title.textContent = "Nuevo Producto";
         const form = document.getElementById('product-form');
         if (form) form.reset();
+        setProductImagePreview('');
+        document.getElementById('prod-image-status').textContent = '';
         document.getElementById('prod-discount').value = 0;
         document.getElementById('prod-commission').value = 0;
     }
@@ -1290,6 +1339,69 @@ function updateMarginPreview() {
     const cls = conAf < 0 ? 'text-rose-400' : (conAf === 0 ? 'text-amber-400' : 'text-emerald-400');
     el.innerHTML = `Ganancia sin código: <span class="text-emerald-400">$${base.toFixed(2)}</span> · Cliente paga con código: $${Math.max(0, price - disc).toFixed(2)} · Ganancia con código: <span class="${cls}">$${conAf.toFixed(2)}</span>` +
         (conAf < 0 ? '<br><span class="text-rose-400">⚠ Perderías dinero: baja el descuento o la comisión. No se podrá guardar.</span>' : '');
+}
+
+function setProductImagePreview(url) {
+    const img = document.getElementById('prod-image-preview');
+    if (!img) return;
+    if (url) {
+        img.src = url;
+        img.classList.remove('hidden');
+    } else {
+        img.src = '';
+        img.classList.add('hidden');
+    }
+}
+
+// Sube la imagen elegida al bucket "products" de Supabase Storage y pone
+// la URL pública resultante en el campo de texto (que sigue existiendo
+// por si el admin prefiere pegar una URL externa en vez de subir un archivo).
+async function handleProductImageUpload(e) {
+    const file = e.target.files && e.target.files[0];
+    const status = document.getElementById('prod-image-status');
+    if (!file) return;
+
+    const maxBytes = 5 * 1024 * 1024;
+    const allowed = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'];
+    if (!allowed.includes(file.type)) {
+        status.textContent = 'Formato no permitido. Usa PNG, JPG, WEBP o GIF.';
+        status.className = 'text-xs text-rose-400 mt-1.5';
+        e.target.value = '';
+        return;
+    }
+    if (file.size > maxBytes) {
+        status.textContent = 'La imagen pesa más de 5MB. Comprímela e inténtalo de nuevo.';
+        status.className = 'text-xs text-rose-400 mt-1.5';
+        e.target.value = '';
+        return;
+    }
+
+    status.textContent = 'Subiendo imagen...';
+    status.className = 'text-xs text-slate-400 mt-1.5';
+    e.target.disabled = true;
+
+    const ext = file.name.split('.').pop().toLowerCase();
+    const path = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
+
+    const { error } = await supabase.storage.from('products').upload(path, file, {
+        cacheControl: '3600',
+        upsert: false
+    });
+
+    e.target.disabled = false;
+
+    if (error) {
+        status.textContent = 'No se pudo subir la imagen: ' + error.message;
+        status.className = 'text-xs text-rose-400 mt-1.5';
+        e.target.value = '';
+        return;
+    }
+
+    const { data } = supabase.storage.from('products').getPublicUrl(path);
+    document.getElementById('prod-image').value = data.publicUrl;
+    setProductImagePreview(data.publicUrl);
+    status.textContent = 'Imagen subida ✅';
+    status.className = 'text-xs text-emerald-400 mt-1.5';
 }
 
 async function handleSaveProduct(e) {
