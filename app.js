@@ -970,9 +970,6 @@ async function sendWhatsAppOrder(e) {
     const refFor = cur => cur === 'USD' ? `${orderRef}-USD` : orderRef;
     const refsText = currencies.map(refFor).join(' / ');
 
-    // Se lanzan ANTES de abrir WhatsApp pero sin "await": si esperáramos aquí,
-    // Safari/iOS y otros navegadores bloquean window.open por perder el gesto del clic.
-    // El servidor recalcula precios, descuento y comisión: el navegador no puede inflarlos.
     const salePromises = currencies.map(cur => submitSaleWithRetry({
         p_codigo: activeAffiliate ? activeAffiliate.codigo : null,
         p_cliente: name || 'Cliente General',
@@ -1002,24 +999,40 @@ async function sendWhatsAppOrder(e) {
 
     const whatsappUrl = `https://wa.me/${STORE_WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`;
 
-    document.getElementById('checkout-modal').classList.add('hidden');
-    document.getElementById('checkout-modal').classList.remove('flex');
+    // 1) Procesar el registro de las ventas en Supabase de forma limpia primero
+    const results = await Promise.all(salePromises);
+    if (results.some(ok => !ok)) {
+        showToast('El pedido se procesó localmente, pero hubo un problema al sincronizar con el servidor. Se reintentará.');
+    }
 
-    // El carrito se vacía porque el pedido ya quedó armado en el mensaje;
-    // si el cliente vuelve, no debería reencontrarse el mismo pedido "a medias".
-    // El código de afiliado tampoco debe seguir aplicado a la siguiente compra.
-    cart = [];
-    setStorage('cart', cart);
-    clearActiveAffiliate();
-    updateCartUI();
-    toggleCart(); // cierra el panel del carrito si estaba abierto
+    // 2) Limpieza de la interfaz
+    try {
+        document.getElementById('checkout-modal').classList.add('hidden');
+        document.getElementById('checkout-modal').classList.remove('flex');
 
-    window.open(whatsappUrl, '_blank');
-    showOrderConfirmation(refsText);
+        // El carrito se vacía porque el pedido ya quedó armado en el mensaje;
+        // si el cliente vuelve, no debería reencontrarse el mismo pedido "a medias".
+        // El código de afiliado tampoco debe seguir aplicado a la siguiente compra.
+        cart = [];
+        setStorage('cart', cart);
+        clearActiveAffiliate();
+        updateCartUI();
+        const drawer = document.getElementById('cart-drawer');
+        if (drawer && drawer.classList.contains('translate-x-0')) toggleCart();
+    } catch (err) {
+        console.error('Error limpiando la interfaz tras el pedido:', err);
+    }
 
-    Promise.all(salePromises).then(results => {
-        if (results.some(ok => !ok)) showToast('El pedido salió por WhatsApp, pero no se pudo registrar en el sistema. Se reintentará automáticamente.');
-    });
+    // 3) Redirección segura según dispositivo (móvil vs escritorio)
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    if (isMobile) {
+        window.location.href = whatsappUrl;
+    } else {
+        let waWindow = null;
+        try { waWindow = window.open(whatsappUrl, '_blank'); } catch (err) { console.error('window.open falló:', err); }
+        const blocked = !waWindow || waWindow.closed;
+        showOrderConfirmation(refsText, whatsappUrl, blocked);
+    }
 }
 
 // --- REGISTRO DE PEDIDOS CON REINTENTO ---
