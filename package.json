@@ -1,0 +1,23 @@
+{
+  "name": "tienda-whatsapp",
+  "version": "1.0.0",
+  "description": "",
+  "main": "admin.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/d-nexus/tinajitostore.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/d-nexus/tinajitostore/issues"
+  },
+  "homepage": "https://github.com/d-nexus/tinajitostore#readme",
+  "devDependencies": {
+    "tailwindcss": "^3.4.19"
+  }
+}
