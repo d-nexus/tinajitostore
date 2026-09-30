@@ -950,7 +950,8 @@ function updateCartUI() {
                     </div>
                 </div>
             </div>
-        `).join('');
+        `;
+        }).join('');
     }
 }
 
